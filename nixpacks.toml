@@ -1,12 +1,8 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "corepack"]
+nixPkgs = ["nodejs_20"]
 
 [phases.install]
 cmds = [
   "corepack enable",
-  "corepack prepare pnpm@latest --activate",
   "pnpm install --frozen-lockfile"
 ]
-
-[start]
-cmd = "echo 'Use service-specific start commands'"
