@@ -1,41 +1,37 @@
-# Stage 1: Build
-FROM node:20-slim AS builder
+# Use Alpine for smaller image size and faster downloads
+FROM node:20-alpine AS builder
 
-# Enable corepack for pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm
+RUN npm install -g pnpm@latest
 
 WORKDIR /app
 
-# Copy workspace files
+# Copy workspace configuration
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY apps/api/package.json ./apps/api/
+
+# Copy all packages and apps
+COPY apps ./apps
 COPY packages ./packages
 
-# Install dependencies
+# Install all dependencies
 RUN pnpm install --frozen-lockfile
-
-# Copy source code
-COPY apps/api ./apps/api
 
 # Build API
 RUN pnpm -C apps/api build
 
-# Stage 2: Production
-FROM node:20-slim
+# Production stage
+FROM node:20-alpine
 
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# Install pnpm
+RUN npm install -g pnpm@latest
 
 WORKDIR /app
 
-# Copy built files and dependencies
-COPY --from=builder /app/package.json /app/pnpm-workspace.yaml /app/pnpm-lock.yaml ./
-COPY --from=builder /app/apps/api ./apps/api
-COPY --from=builder /app/packages ./packages
-COPY --from=builder /app/node_modules ./node_modules
+# Copy everything from builder
+COPY --from=builder /app ./
 
-# Install production dependencies only
-RUN pnpm install --frozen-lockfile --prod
-
+# Expose port
 EXPOSE 3000
 
+# Start API
 CMD ["pnpm", "-C", "apps/api", "start"]
