@@ -26,9 +26,12 @@ import {
   ExecutionHealth,
   GlobalMode,
 } from "@schimidt-brain/contracts";
+import { mapDecisionToExecutorCommands } from "@schimidt-brain/adapters";
+import type { MappingDecision, MappingIntent, MappingConfig } from "@schimidt-brain/adapters";
 import type { LedgerEventInput } from "@schimidt-brain/db";
 import type { Component } from "@schimidt-brain/db";
 import { persistEvent } from "./ledgerService";
+import { applyCommands } from "./executorService";
 import { newEventId, newCorrelationId, nowISO } from "../utils/correlation";
 import {
   getOperationalState,
@@ -267,12 +270,47 @@ export async function runTick(input: TickInput): Promise<TickResult> {
     }
   }
 
-  // ─── 5. Comandos ao executor (placeholder) ──────────────────
+  // ─── 5. Comandos ao executor (Agente 6) ──────────────────────
   const commandsSent = canSendCommands();
   if (commandsSent) {
-    // TODO: Agente 6 — integrar envio de comandos ao executor
-    // Para cada PM_DECISION com decision === "ALLOW":
-    //   enviar comando de execução
+    const mappingConfig: MappingConfig = {
+      gate: opsState.gate,
+      armed: opsState.arm_state === "ARMED",
+    };
+
+    for (let i = 0; i < decisions.length; i++) {
+      const decision = decisions[i];
+      const intent = intents[i];
+      if (!decision || !intent) continue;
+
+      const mappingDecision: MappingDecision = {
+        decision: decision.decision,
+        intent_event_id: decision.intent_event_id,
+        risk_adjustments: decision.risk_adjustments,
+      };
+
+      const mappingIntent: MappingIntent = {
+        intent_type: intent.intent_type,
+        symbol: intent.symbol,
+        brain_id: intent.brain_id,
+        proposed_risk_pct: intent.proposed_risk_pct,
+        trade_plan: intent.trade_plan,
+      };
+
+      const executorCommands = mapDecisionToExecutorCommands(
+        mappingDecision,
+        mappingIntent,
+        mappingConfig
+      );
+
+      if (executorCommands.length > 0) {
+        try {
+          await applyCommands(executorCommands, correlationId);
+        } catch (err) {
+          console.error("Erro ao enviar comandos ao executor:", err);
+        }
+      }
+    }
   }
 
   return {

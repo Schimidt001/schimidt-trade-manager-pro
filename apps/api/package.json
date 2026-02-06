@@ -22,6 +22,7 @@
   "dependencies": {
     "@schimidt-brain/contracts": "file:../../packages/contracts",
     "@schimidt-brain/core": "file:../../packages/core",
+    "@schimidt-brain/adapters": "file:../../packages/adapters",
     "@schimidt-brain/db": "file:../../packages/db",
     "fastify": "^4.28.1",
     "pino": "^9.5.0",

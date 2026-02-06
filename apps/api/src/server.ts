@@ -12,6 +12,7 @@ import { registerDecisionsRoutes } from "./routes/decisions.routes";
 import { registerReplayRoutes } from "./routes/replay.routes";
 import { registerAuditRoutes } from "./routes/audit.routes";
 import { registerStreamRoutes } from "./routes/stream.routes";
+import { registerExecutorRoutes } from "./routes/executor.routes";
 import { closePool } from "@schimidt-brain/db";
 
 const startTime = Date.now();
@@ -44,6 +45,7 @@ async function main(): Promise<void> {
   await registerReplayRoutes(app);
   await registerAuditRoutes(app);
   await registerStreamRoutes(app);
+  await registerExecutorRoutes(app);
 
   // ─── Graceful shutdown ──────────────────────────────────────
   const shutdown = async (): Promise<void> => {

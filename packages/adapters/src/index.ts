@@ -49,3 +49,40 @@ export {
 // ─── Providers individuais (para uso direto se necessário) ──
 export { fetchCalendarDay as fetchTradingEconomicsCalendar } from "./news/tradingEconomics";
 export { fetchCalendarDay as fetchFinnhubCalendar } from "./news/finnhub";
+
+// ═════════════════════════════════════════════════════════════
+// Executor Adapter (Agente 6)
+// ═════════════════════════════════════════════════════════════
+
+// ─── Executor Types ─────────────────────────────────────────
+export type {
+  ExecutionState,
+  ExecutorRiskProfile,
+  ExecutorHealthMetrics,
+  ExecutorStatus,
+  ExecutorCommandType,
+  ExecutorCommand,
+  ExecutorCommandResult,
+  ExecutorEventType,
+  ExecutorEvent,
+  IExecutorAdapter,
+  SimulatorMode,
+} from "./executor/types";
+
+// ─── Executor Adapter (real) ────────────────────────────────
+export { ExecutorAdapter } from "./executor/executorAdapter";
+
+// ─── Executor Simulator ─────────────────────────────────────
+export { ExecutorSimulator } from "./executor/executorSimulator";
+
+// ─── Mapping PM → Executor Commands ─────────────────────────
+export {
+  mapDecisionToExecutorCommands,
+  createNotSupportedEntry,
+} from "./executor/mapping";
+export type {
+  MappingDecision,
+  MappingIntent,
+  MappingEhmAction,
+  MappingConfig,
+} from "./executor/mapping";

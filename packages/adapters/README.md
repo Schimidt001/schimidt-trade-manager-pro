@@ -142,3 +142,56 @@ Quando a API recebe um estado `DEGRADED` ou `DOWN`, é da sua responsabilidade:
 2.  **Bloquear a ativação do Brain D2**, garantindo que ele não gere `Intents` com base em dados não confiáveis.
 
 Esta salvaguarda é crítica para a estabilidade e segurança do sistema.
+
+---
+
+## Executor Adapter (Agente 6)
+
+O módulo `executor` fornece a camada de integração com o **Schimidt Trader System Pro (Executor)**. Foi projetado para ser robusto e seguro, permitindo que o Brain opere de forma desacoplada e com um rollout gradual (G0 → G1 → G2 → G3).
+
+### Estrutura
+
+```
+packages/adapters/
+  src/
+    executor/
+      types.ts              # Contrato de dados (Brain-Side): ExecutorStatus, ExecutorCommand, ExecutorEvent
+      executorAdapter.ts     # Client HTTP real com timeout (3s) e retry (1 tentativa)
+      executorSimulator.ts   # Simulador completo (modos: normal, degraded, down)
+      mapping.ts             # Mapping PM Decision → ExecutorCommand[]
+```
+
+### Contrato e Documentação
+
+O contrato formal entre o Brain e o Executor está documentado em `docs/executor-contract.md`. Este documento é a **fonte única da verdade** sobre os endpoints, payloads e comportamento esperado da API do executor.
+
+### Variáveis de Ambiente (Executor)
+
+```bash
+# Modo de operação: SIMULATOR (default) ou REAL
+EXECUTOR_MODE="SIMULATOR"
+
+# URL base do executor (obrigatório em modo REAL)
+EXECUTOR_BASE_URL="https://executor.railway.app"
+
+# API key para autenticação no executor (obrigatório em modo REAL)
+EXECUTOR_API_KEY="sua-chave-aqui"
+
+# Secret para validação de webhooks do executor
+EXECUTOR_WEBHOOK_SECRET="seu-secret-aqui"
+```
+
+### Modo de Operação
+
+A seleção entre o adapter real e o simulador é controlada pela variável de ambiente `EXECUTOR_MODE` na API:
+
+- `EXECUTOR_MODE=SIMULATOR` (default): A API usará o `ExecutorSimulator`.
+- `EXECUTOR_MODE=REAL`: A API usará o `ExecutorAdapter` para se comunicar com o executor real.
+
+### Safety Mode
+
+Quando o Brain detecta que o executor está `DOWN` ou `BROKEN` (latência > 2s, error_rate > 50%), o sistema entra automaticamente em modo de segurança:
+
+1. O `execution_state` global é alterado para `BROKEN`.
+2. Nenhum novo comando de execução é enviado.
+3. Um evento `EXEC_STATE_CHANGE` é registrado no ledger e emitido via SSE.

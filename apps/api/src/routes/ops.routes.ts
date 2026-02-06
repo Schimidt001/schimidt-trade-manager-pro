@@ -12,6 +12,7 @@ import {
 import { recordAuditLog } from "../services/auditService";
 import { runTick } from "../services/decisionEngine";
 import { newCorrelationId } from "../utils/correlation";
+import { getExecutorStatus } from "../services/executorService";
 
 export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
   /**
@@ -21,6 +22,15 @@ export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
    */
   app.get("/ops/status", async (_request, _reply) => {
     const state = getOperationalState();
+
+    // Obter status do executor (non-blocking — se falhar, retorna null)
+    let executorStatus = null;
+    try {
+      executorStatus = await getExecutorStatus();
+    } catch {
+      // Executor inacessível — connectivity já atualizada pelo service
+    }
+
     return {
       gate: state.gate,
       arm_state: state.arm_state,
@@ -28,6 +38,7 @@ export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
       execution_state: state.execution_state,
       provider_states: state.provider_states,
       executor_connectivity: state.executor_connectivity,
+      executor_status: executorStatus,
       timestamp: new Date().toISOString(),
     };
   });
