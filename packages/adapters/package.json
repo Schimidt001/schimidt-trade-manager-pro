@@ -1,0 +1,32 @@
+{
+  "name": "@schimidt-brain/adapters",
+  "version": "1.0.0",
+  "description": "Adapters externos — News Provider (Trading Economics + Finnhub), normalização, health e event windows",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "validate": "tsc --noEmit"
+  },
+  "keywords": [
+    "schimidt-brain",
+    "adapters",
+    "news",
+    "trading-economics",
+    "finnhub",
+    "economic-calendar"
+  ],
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@schimidt-brain/contracts": "file:../contracts"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.1",
+    "typescript": "^5.6.3"
+  }
+}
