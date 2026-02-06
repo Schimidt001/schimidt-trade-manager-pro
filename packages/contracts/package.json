@@ -1,0 +1,32 @@
+{
+  "name": "@schimidt-brain/contracts",
+  "version": "1.0.0",
+  "description": "Fonte única da verdade — Contratos, schemas e enums canônicos do Schimidt Brain",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run build",
+    "validate": "tsc --noEmit"
+  },
+  "keywords": [
+    "schimidt-brain",
+    "contracts",
+    "schemas",
+    "zod"
+  ],
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "zod": "^3.23.8",
+    "zod-to-json-schema": "^3.23.5"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}
