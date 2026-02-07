@@ -1,0 +1,41 @@
+# Multi-stage Dockerfile para Schimidt Brain UI (Next.js)
+# Stage 1: Build
+FROM node:22-slim AS builder
+
+WORKDIR /app
+
+# Copiar package.json e lock file do UI
+COPY apps/ui/package.json apps/ui/pnpm-lock.yaml apps/ui/
+
+# Instalar pnpm e dependências
+RUN npm install -g pnpm@9 && \
+    cd apps/ui && pnpm install --frozen-lockfile
+
+# Copiar código fonte do UI
+COPY apps/ui/ apps/ui/
+
+# Build Next.js (standalone output)
+ARG NEXT_PUBLIC_API_BASE_URL
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
+RUN cd apps/ui && pnpm build
+
+# Stage 2: Runtime
+FROM node:22-slim
+
+WORKDIR /app
+
+# Copiar standalone output do Next.js
+COPY --from=builder /app/apps/ui/.next/standalone ./
+COPY --from=builder /app/apps/ui/.next/static ./.next/static
+COPY --from=builder /app/apps/ui/public ./public 2>/dev/null || true
+
+# Expor porta
+EXPOSE 3000
+
+# Variáveis de ambiente
+ENV NODE_ENV=production
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Start Next.js standalone server
+CMD ["node", "server.js"]
