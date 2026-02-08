@@ -2,6 +2,7 @@
 // @schimidt-brain/api — Auth Middleware (API Key + Role Injection)
 // ═══════════════════════════════════════════════════════════════
 // Header: Authorization: Bearer <api_key>
+// Fallback: ?token=<api_key> (para SSE/EventSource)
 // Injeta role no request para uso nos handlers.
 // /health é público (sem auth).
 // ═══════════════════════════════════════════════════════════════
@@ -22,6 +23,28 @@ declare module "fastify" {
 const PUBLIC_PATHS = ["/health"];
 
 /**
+ * Extrai o token de autenticação do request.
+ * Prioridade: header Authorization > query parameter token.
+ * O fallback via query param é necessário para SSE (EventSource
+ * não suporta headers customizados).
+ */
+function extractToken(request: FastifyRequest): string | null {
+  // 1. Header Authorization: Bearer <token>
+  const authHeader = request.headers.authorization;
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    return authHeader.slice(7).trim();
+  }
+
+  // 2. Query parameter ?token=<token> (fallback para SSE)
+  const query = request.query as { token?: string };
+  if (query.token && typeof query.token === "string") {
+    return query.token.trim();
+  }
+
+  return null;
+}
+
+/**
  * Fastify onRequest hook para autenticação.
  */
 export function authHook(
@@ -35,8 +58,8 @@ export function authHook(
     return;
   }
 
-  const authHeader = request.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  const token = extractToken(request);
+  if (!token) {
     reply.code(401).send({
       error: "Unauthorized",
       message: "Header Authorization: Bearer <api_key> obrigatório",
@@ -44,7 +67,6 @@ export function authHook(
     return;
   }
 
-  const token = authHeader.slice(7).trim();
   const config = getConfig();
 
   // Mapear token → role

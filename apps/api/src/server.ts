@@ -34,6 +34,28 @@ async function main(): Promise<void> {
     },
   });
 
+  // ─── CORS (manual — sem dependência extra) ─────────────────
+  app.addHook("onRequest", (request, reply, done) => {
+    reply.header("Access-Control-Allow-Origin", "*");
+    reply.header(
+      "Access-Control-Allow-Methods",
+      "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+    );
+    reply.header(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization"
+    );
+    reply.header("Access-Control-Max-Age", "86400");
+
+    // Preflight
+    if (request.method === "OPTIONS") {
+      reply.code(204).send();
+      return;
+    }
+
+    done();
+  });
+
   // ─── Auth hook global (exceto /health) ──────────────────────
   app.addHook("onRequest", authHook);
 
