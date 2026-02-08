@@ -3,14 +3,26 @@
 // ═══════════════════════════════════════════════════════════════
 // Cliente HTTP central. Todas as chamadas à API passam por aqui.
 // Injeta Authorization: Bearer <key> automaticamente.
+//
+// REGRA OBRIGATÓRIA: Usar EXCLUSIVAMENTE NEXT_PUBLIC_API_BASE_URL.
+// Nunca usar window.location.origin ou URL da própria UI.
 // ═══════════════════════════════════════════════════════════════
 
 import { getApiKey } from "./auth";
 
-const BASE_URL =
-  typeof window !== "undefined"
-    ? (process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000")
-    : "http://localhost:3000";
+// CORREÇÃO: Usar EXCLUSIVAMENTE NEXT_PUBLIC_API_BASE_URL
+// Fallback para localhost:3000 apenas em desenvolvimento.
+// Em produção, a variável DEVE estar definida.
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3000";
+
+// Emitir warning se a variável não estiver definida (indica configuração incorreta)
+if (typeof window !== "undefined" && !process.env.NEXT_PUBLIC_API_BASE_URL) {
+  console.warn(
+    "[schimidt-brain/ui] NEXT_PUBLIC_API_BASE_URL não definida. " +
+    "Usando fallback http://localhost:3000. " +
+    "Em produção, defina esta variável para apontar para a API correta."
+  );
+}
 
 export class ApiError extends Error {
   constructor(

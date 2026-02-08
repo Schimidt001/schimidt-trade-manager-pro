@@ -18,6 +18,12 @@ interface OpsStatus {
   execution_state: string;
   provider_states: Record<string, string>;
   executor_connectivity: string;
+  executor_status?: {
+    mode?: string;
+    connected?: boolean;
+    [key: string]: unknown;
+  } | null;
+  next_scheduled_run?: string;
 }
 
 const BRAIN_IDS = ["A2", "B3", "C3", "D2"];
@@ -132,6 +138,10 @@ export default function CockpitPage() {
     };
   };
 
+  // Derive executor mode from ops status
+  const executorMode = opsStatus?.executor_status?.mode || undefined;
+  const nextScheduledRun = opsStatus?.next_scheduled_run || undefined;
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -150,6 +160,8 @@ export default function CockpitPage() {
         executionState={opsStatus?.execution_state || "—"}
         providerStates={opsStatus?.provider_states || {}}
         executorConnectivity={opsStatus?.executor_connectivity || "unknown"}
+        executorMode={executorMode}
+        nextScheduledRun={nextScheduledRun}
       />
 
       {/* 3 Columns Layout */}

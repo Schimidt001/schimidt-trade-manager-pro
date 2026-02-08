@@ -30,7 +30,9 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
           ? "/ops/disarm"
           : "/ops/kill";
 
-      await apiPost(endpoint, { reason });
+      // CORREÇÃO BUG CRÍTICO: Enviar campo "confirm" junto com "reason"
+      // A API exige { confirm: "ARM"|"DISARM"|"KILL", reason: "..." }
+      await apiPost(endpoint, { confirm: activeAction, reason });
       onActionComplete();
     } catch (err) {
       console.error(`Failed to ${activeAction}:`, err);
@@ -40,18 +42,57 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
     }
   };
 
+  // Quick action handler genérico (placeholder para endpoints futuros)
+  const handleQuickAction = async (action: string) => {
+    try {
+      switch (action) {
+        case "RISK_OFF":
+          await apiPost("/ops/kill", { confirm: "KILL", reason: "RISK_OFF ativado via Quick Action" });
+          break;
+        case "PAUSE_D2":
+          // Endpoint futuro — por ora apenas log
+          console.info("[QuickAction] Pause News Brain (D2) — endpoint pendente");
+          break;
+        case "FREEZE_CONFIG":
+          // Endpoint futuro — por ora apenas log
+          console.info("[QuickAction] Freeze Config — endpoint pendente");
+          break;
+        case "RESUME_CONFIG":
+          // Endpoint futuro — por ora apenas log
+          console.info("[QuickAction] Resume Config — endpoint pendente");
+          break;
+      }
+      onActionComplete();
+    } catch (err) {
+      console.error(`Quick action ${action} failed:`, err);
+    }
+  };
+
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="text-xs font-medium uppercase text-muted-foreground mb-3">
-        Controls
+        Controles Operacionais
       </h3>
+
+      {/* Aviso conceitual obrigatório — Seção 8 das diretrizes */}
+      <div className="rounded border border-primary/20 bg-primary/5 px-3 py-2 mb-3">
+        <p className="text-[10px] text-primary/80 leading-relaxed">
+          <strong>ARM apenas AUTORIZA</strong> — não executa lógica nem trades.
+          Quem executa: <span className="font-mono">/ops/tick</span> (manual) ou Scheduler (automático).
+        </p>
+      </div>
 
       <div className="space-y-2">
         {/* ARM / DISARM */}
-        {armState === "DISARMED" ? (
+        {armState === "DISARMED" || armState === "—" ? (
           <button
             onClick={() => setActiveAction("ARM")}
             disabled={!isOperator}
+            title={
+              isOperator
+                ? "Armar sistema — autoriza execução de comandos pelo tick/scheduler"
+                : "Requer role Operator ou Admin"
+            }
             className={cn(
               "w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
               isOperator
@@ -65,6 +106,11 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
           <button
             onClick={() => setActiveAction("DISARM")}
             disabled={!isOperator}
+            title={
+              isOperator
+                ? "Desarmar sistema — revoga autorização de execução"
+                : "Requer role Operator ou Admin"
+            }
             className={cn(
               "w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
               isOperator
@@ -80,6 +126,11 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
         <button
           onClick={() => setActiveAction("KILL")}
           disabled={!isOperator}
+          title={
+            isOperator
+              ? "Kill Switch — RISK_OFF + DISARM imediato. Use apenas em emergência."
+              : "Requer role Operator ou Admin"
+          }
           className={cn(
             "w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
             isOperator
@@ -93,25 +144,42 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
         {/* Divider */}
         <div className="border-t border-border my-3" />
 
-        {/* Quick actions */}
+        {/* Quick Actions — Seção 5 das diretrizes */}
+        <h4 className="text-[10px] font-medium uppercase text-muted-foreground mb-1.5">
+          Quick Actions
+        </h4>
         <div className="space-y-1.5">
           <button
+            onClick={() => handleQuickAction("RISK_OFF")}
             disabled={!isOperator}
-            className="w-full rounded border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
-          >
-            Pause D2
-          </button>
-          <button
-            disabled={!isOperator}
+            title="Ativa modo RISK_OFF — para todas as operações e entra em modo defensivo. Equivale a KILL."
             className="w-full rounded border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
           >
             Set RISK_OFF
           </button>
           <button
+            onClick={() => handleQuickAction("PAUSE_D2")}
             disabled={!isOperator}
+            title="Pausa o Brain D2 (News Brain) — impede que notícias gerem intents até ser retomado. Backend pendente."
             className="w-full rounded border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
           >
-            Pause Cluster
+            Pause News Brain (D2)
+          </button>
+          <button
+            onClick={() => handleQuickAction("FREEZE_CONFIG")}
+            disabled={!isOperator}
+            title="Congela a configuração atual — impede qualquer alteração de config até ser desbloqueado. Backend pendente."
+            className="w-full rounded border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+          >
+            Freeze Config
+          </button>
+          <button
+            onClick={() => handleQuickAction("RESUME_CONFIG")}
+            disabled={!isOperator}
+            title="Desbloqueia a configuração — permite alterações de config novamente. Backend pendente."
+            className="w-full rounded border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
+          >
+            Resume Config
           </button>
         </div>
 
@@ -128,7 +196,7 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
         onClose={() => setActiveAction(null)}
         onConfirm={handleConfirm}
         title="Armar Sistema"
-        description="O sistema passará a enviar comandos ao executor. Certifique-se de que todas as condições estão verificadas."
+        description="ARM apenas AUTORIZA o sistema a executar comandos quando o tick ou scheduler for acionado. ARM não executa trades diretamente. Certifique-se de que todas as condições estão verificadas."
         confirmText="ARM"
         requireReason
         loading={loading}
@@ -140,7 +208,7 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
         onClose={() => setActiveAction(null)}
         onConfirm={handleConfirm}
         title="Desarmar Sistema"
-        description="O sistema deixará de enviar comandos ao executor. Posições abertas não serão afetadas."
+        description="DISARM revoga a autorização de execução. O sistema deixará de autorizar novos comandos ao executor. Posições abertas não serão afetadas."
         confirmText="DISARM"
         requireReason
         loading={loading}
@@ -152,7 +220,7 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
         onClose={() => setActiveAction(null)}
         onConfirm={handleConfirm}
         title="KILL Switch"
-        description="ATENÇÃO: Isto irá parar TODAS as operações imediatamente. Use apenas em emergência."
+        description="ATENÇÃO: Isto irá ativar RISK_OFF e DISARM imediatamente. Todas as autorizações serão revogadas e o sistema entrará em modo defensivo. Use apenas em emergência."
         confirmText="KILL"
         requireReason
         variant="danger"

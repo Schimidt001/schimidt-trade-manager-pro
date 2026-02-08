@@ -10,6 +10,8 @@ interface GlobalStatusBarProps {
   executionState: string;
   providerStates: Record<string, string>;
   executorConnectivity: string;
+  executorMode?: string;
+  nextScheduledRun?: string;
 }
 
 function armVariant(state: string): "success" | "danger" | "warning" | "muted" {
@@ -18,6 +20,8 @@ function armVariant(state: string): "success" | "danger" | "warning" | "muted" {
       return "success";
     case "DISARMED":
       return "danger";
+    case "SHADOW":
+      return "warning";
     default:
       return "muted";
   }
@@ -68,6 +72,20 @@ function providerStatus(state: string): "ok" | "warn" | "error" | "unknown" {
   }
 }
 
+function executorModeVariant(mode: string): "success" | "warning" | "muted" {
+  switch (mode?.toUpperCase()) {
+    case "REAL":
+    case "LIVE":
+      return "success";
+    case "SIMULATOR":
+    case "SIM":
+    case "PAPER":
+      return "warning";
+    default:
+      return "muted";
+  }
+}
+
 export function GlobalStatusBar({
   armState,
   gate,
@@ -75,10 +93,19 @@ export function GlobalStatusBar({
   executionState,
   providerStates,
   executorConnectivity,
+  executorMode,
+  nextScheduledRun,
 }: GlobalStatusBarProps) {
+  // Derive executor mode label
+  const executorModeLabel = executorMode
+    ? executorMode.toUpperCase()
+    : executorConnectivity === "connected"
+    ? "—"
+    : "—";
+
   return (
     <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card p-3">
-      {/* ARM State */}
+      {/* ARM State — SYSTEM: ARMED / DISARMED / SHADOW */}
       <div className="flex items-center gap-2">
         <span className="text-[10px] uppercase text-muted-foreground">System</span>
         <Badge variant={armVariant(armState)} size="md" pulse={armState === "ARMED"}>
@@ -88,21 +115,11 @@ export function GlobalStatusBar({
 
       <div className="h-6 w-px bg-border" />
 
-      {/* Gate */}
+      {/* Gate: G0–G3 */}
       <div className="flex items-center gap-2">
         <span className="text-[10px] uppercase text-muted-foreground">Gate</span>
         <Badge variant={gateVariant(gate)} size="md">
           {gate || "—"}
-        </Badge>
-      </div>
-
-      <div className="h-6 w-px bg-border" />
-
-      {/* Global Mode */}
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] uppercase text-muted-foreground">Mode</span>
-        <Badge variant={modeVariant(globalMode)} size="md">
-          {globalMode || "—"}
         </Badge>
       </div>
 
@@ -121,7 +138,26 @@ export function GlobalStatusBar({
 
       <div className="h-6 w-px bg-border" />
 
-      {/* Providers */}
+      {/* Executor status (Simulator / Real) — Seção 4 diretriz */}
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] uppercase text-muted-foreground">Executor</span>
+        <StatusDot
+          status={providerStatus(executorConnectivity)}
+          label={executorConnectivity || "unknown"}
+        />
+        <span title="Modo do executor: Simulator (paper trading) ou Real (live trading)">
+          <Badge
+            variant={executorModeVariant(executorMode || "")}
+            size="sm"
+          >
+            {executorMode ? executorMode.toUpperCase() : "—"}
+          </Badge>
+        </span>
+      </div>
+
+      <div className="h-6 w-px bg-border" />
+
+      {/* Provider News status */}
       <div className="flex items-center gap-3">
         <span className="text-[10px] uppercase text-muted-foreground">Providers</span>
         {Object.keys(providerStates).length > 0 ? (
@@ -139,13 +175,25 @@ export function GlobalStatusBar({
 
       <div className="h-6 w-px bg-border" />
 
-      {/* Executor */}
+      {/* Global Mode */}
       <div className="flex items-center gap-2">
-        <span className="text-[10px] uppercase text-muted-foreground">Executor</span>
-        <StatusDot
-          status={providerStatus(executorConnectivity)}
-          label={executorConnectivity || "unknown"}
-        />
+        <span className="text-[10px] uppercase text-muted-foreground">Mode</span>
+        <Badge variant={modeVariant(globalMode)} size="md">
+          {globalMode || "—"}
+        </Badge>
+      </div>
+
+      <div className="h-6 w-px bg-border" />
+
+      {/* Próxima execução (scheduler) — Seção 4 diretriz */}
+      <div className="flex items-center gap-2">
+        <span className="text-[10px] uppercase text-muted-foreground">Next Run</span>
+        <span
+          className="text-xs font-mono text-muted-foreground"
+          title="Próxima execução agendada pelo scheduler. Se vazio, sem agendamento ativo."
+        >
+          {nextScheduledRun || "—"}
+        </span>
       </div>
     </div>
   );
