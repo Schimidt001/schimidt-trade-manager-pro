@@ -11,31 +11,49 @@ interface QuickActionsProps {
   onActionComplete: () => void;
 }
 
-type ActionType = "ARM" | "DISARM" | "KILL" | null;
+type ActionType = "ARM" | "DISARM" | "KILL" | "TICK" | null;
 
 export function QuickActions({ armState, onActionComplete }: QuickActionsProps) {
   const [activeAction, setActiveAction] = useState<ActionType>(null);
   const [loading, setLoading] = useState(false);
+  const [tickResult, setTickResult] = useState<string | null>(null);
   const isOperator = canOperate();
 
   const handleConfirm = async (reason: string) => {
     if (!activeAction) return;
     setLoading(true);
+    setTickResult(null);
 
     try {
-      const endpoint =
-        activeAction === "ARM"
-          ? "/ops/arm"
-          : activeAction === "DISARM"
-          ? "/ops/disarm"
-          : "/ops/kill";
+      if (activeAction === "TICK") {
+        // Run Tick — envia lista de símbolos default
+        const result = await apiPost<{
+          correlation_id: string;
+          commands_sent: number;
+          summary: { snapshots: number; intents: number; decisions: number };
+        }>("/ops/tick", {
+          symbols: ["EURUSD", "GBPUSD", "USDJPY", "BTCUSD"],
+        });
+        setTickResult(
+          `Tick executado: ${result.summary.snapshots} snapshots, ${result.summary.intents} intents, ${result.summary.decisions} decisions. Correlation ID: ${result.correlation_id}`
+        );
+        setTimeout(() => setTickResult(null), 10000);
+      } else {
+        // ARM / DISARM / KILL
+        const endpoint =
+          activeAction === "ARM"
+            ? "/ops/arm"
+            : activeAction === "DISARM"
+            ? "/ops/disarm"
+            : "/ops/kill";
 
-      // CORREÇÃO BUG CRÍTICO: Enviar campo "confirm" junto com "reason"
-      // A API exige { confirm: "ARM"|"DISARM"|"KILL", reason: "..." }
-      await apiPost(endpoint, { confirm: activeAction, reason });
+        await apiPost(endpoint, { confirm: activeAction, reason });
+      }
       onActionComplete();
     } catch (err) {
       console.error(`Failed to ${activeAction}:`, err);
+      setTickResult(`Erro: ${(err as Error).message}`);
+      setTimeout(() => setTickResult(null), 5000);
     } finally {
       setLoading(false);
       setActiveAction(null);
@@ -50,15 +68,12 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
           await apiPost("/ops/kill", { confirm: "KILL", reason: "RISK_OFF ativado via Quick Action" });
           break;
         case "PAUSE_D2":
-          // Endpoint futuro — por ora apenas log
           console.info("[QuickAction] Pause News Brain (D2) — endpoint pendente");
           break;
         case "FREEZE_CONFIG":
-          // Endpoint futuro — por ora apenas log
           console.info("[QuickAction] Freeze Config — endpoint pendente");
           break;
         case "RESUME_CONFIG":
-          // Endpoint futuro — por ora apenas log
           console.info("[QuickAction] Resume Config — endpoint pendente");
           break;
       }
@@ -82,9 +97,16 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
         </p>
       </div>
 
+      {/* Tick result feedback */}
+      {tickResult && (
+        <div className="rounded border border-emerald-500/30 bg-emerald-500/5 px-3 py-2 mb-3">
+          <p className="text-[10px] text-emerald-400">{tickResult}</p>
+        </div>
+      )}
+
       <div className="space-y-2">
-        {/* ARM / DISARM */}
-        {armState === "DISARMED" || armState === "—" ? (
+        {/* ARM — sempre visível quando DISARMED */}
+        {(armState === "DISARMED" || armState === "—") && (
           <button
             onClick={() => setActiveAction("ARM")}
             disabled={!isOperator}
@@ -102,7 +124,10 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
           >
             ARM System
           </button>
-        ) : (
+        )}
+
+        {/* DISARM — sempre visível quando ARMED */}
+        {armState === "ARMED" && (
           <button
             onClick={() => setActiveAction("DISARM")}
             disabled={!isOperator}
@@ -121,6 +146,25 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
             DISARM System
           </button>
         )}
+
+        {/* RUN TICK — botão crítico para executar pipeline manual */}
+        <button
+          onClick={() => setActiveAction("TICK")}
+          disabled={!isOperator}
+          title={
+            isOperator
+              ? "Executa um ciclo manual de decisão (MCL → Brains → PM → EHM). Requer sistema ARMED."
+              : "Requer role Operator ou Admin"
+          }
+          className={cn(
+            "w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
+            isOperator
+              ? "bg-blue-600 text-white hover:bg-blue-700"
+              : "bg-secondary text-muted-foreground cursor-not-allowed"
+          )}
+        >
+          Run Tick
+        </button>
 
         {/* KILL */}
         <button
@@ -224,6 +268,18 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
         confirmText="KILL"
         requireReason
         variant="danger"
+        loading={loading}
+      />
+
+      {/* TICK Modal — sem reason obrigatório */}
+      <ConfirmActionModal
+        open={activeAction === "TICK"}
+        onClose={() => setActiveAction(null)}
+        onConfirm={() => handleConfirm("")}
+        title="Executar Tick Manual"
+        description="Isto irá executar um ciclo completo de decisão: MCL_SNAPSHOT → BRAIN_INTENT → PM_DECISION → EHM_ACTION. Os eventos aparecerão em /decisions/live. Sistema deve estar ARMED."
+        confirmText="RUN TICK"
+        requireReason={false}
         loading={loading}
       />
     </div>
