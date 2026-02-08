@@ -46,7 +46,7 @@ export async function getReplayDayFull(date: string): Promise<ReplayDayFull | nu
 
   // 1. Verificar se o dia existe
   const dayResult = await pool.query(
-    `SELECT date, status, summary FROM replay_days WHERE date = $1`,
+    `SELECT date::text AS date, status, summary FROM replay_days WHERE date = $1`,
     [date]
   );
 
@@ -95,7 +95,7 @@ export async function getReplayDayFull(date: string): Promise<ReplayDayFull | nu
   };
 
   return {
-    date: day.date,
+    date: String(day.date),
     status: day.status,
     summary: day.summary,
     stats,

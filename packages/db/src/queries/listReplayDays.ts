@@ -50,7 +50,7 @@ export async function listReplayDaysWithCounts(
 
   const query = `
     SELECT
-      rd.date,
+      rd.date::text AS date,
       rd.status,
       rd.summary,
       COALESCE(ec.event_count, 0)::int AS event_count

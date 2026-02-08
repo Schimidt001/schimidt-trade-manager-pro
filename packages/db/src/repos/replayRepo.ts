@@ -63,7 +63,7 @@ export async function listReplayDays(
 
   if (status !== undefined) {
     const result = await pool.query<ReplayDayRow>(
-      `SELECT * FROM replay_days
+      `SELECT date::text AS date, status, summary, created_at FROM replay_days
        WHERE status = $1
        ORDER BY date DESC
        LIMIT $2`,
@@ -73,7 +73,7 @@ export async function listReplayDays(
   }
 
   const result = await pool.query<ReplayDayRow>(
-    `SELECT * FROM replay_days
+    `SELECT date::text AS date, status, summary, created_at FROM replay_days
      ORDER BY date DESC
      LIMIT $1`,
     [limit]
@@ -94,7 +94,7 @@ export async function getReplayDay(date: string): Promise<ReplayDayDetail | null
 
   // 1. Buscar metadados do dia
   const dayResult = await pool.query<ReplayDayRow>(
-    `SELECT * FROM replay_days WHERE date = $1`,
+    `SELECT date::text AS date, status, summary, created_at FROM replay_days WHERE date = $1`,
     [date]
   );
 
@@ -124,7 +124,7 @@ export async function getReplayDay(date: string): Promise<ReplayDayDetail | null
   );
 
   return {
-    date: day.date,
+    date: String(day.date),
     status: day.status,
     summary: day.summary,
     events: eventsResult.rows,
