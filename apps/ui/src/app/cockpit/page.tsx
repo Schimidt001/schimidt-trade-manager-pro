@@ -10,6 +10,8 @@ import { ExecutionQualityCard } from "@/components/cockpit/ExecutionQualityCard"
 import { TimelineCard } from "@/components/cockpit/TimelineCard";
 import { BrainCard } from "@/components/cockpit/BrainCard";
 import { QuickActions } from "@/components/cockpit/QuickActions";
+import { GatePromotionPanel } from "@/components/cockpit/GatePromotionPanel";
+import { WhyNoTradeCockpit } from "@/components/cockpit/WhyNoTradeCockpit";
 
 interface OpsStatus {
   gate: string;
@@ -26,6 +28,12 @@ interface OpsStatus {
   next_scheduled_run?: string;
   mock_mode?: boolean;
   risk_off?: boolean;
+  last_tick_result?: {
+    has_mcl_snapshot: boolean;
+    has_brain_intent_or_skip: boolean;
+    has_pm_decision: boolean;
+    events_persisted: number;
+  } | null;
 }
 
 const BRAIN_IDS = ["A2", "B3", "C3", "D2"];
@@ -80,6 +88,7 @@ export default function CockpitPage() {
 
   const handleActionComplete = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["ops-status"] });
+    queryClient.invalidateQueries({ queryKey: ["replay-narrative-today"] });
   }, [queryClient]);
 
   // Derive brain data from recent decisions
@@ -144,6 +153,17 @@ export default function CockpitPage() {
   const executorMode = opsStatus?.executor_status?.mode || undefined;
   const nextScheduledRun = opsStatus?.next_scheduled_run || undefined;
 
+  // Build opsStatus for GatePromotionPanel
+  const gateOpsStatus = opsStatus ? {
+    gate: opsStatus.gate,
+    arm_state: opsStatus.arm_state,
+    mock_mode: opsStatus.mock_mode,
+    risk_off: opsStatus.risk_off,
+    executor_connectivity: opsStatus.executor_connectivity,
+    executor_status: opsStatus.executor_status,
+    last_tick_result: opsStatus.last_tick_result || null,
+  } : null;
+
   return (
     <div className="space-y-6">
       {/* Page header */}
@@ -177,17 +197,27 @@ export default function CockpitPage() {
           <ExecutionQualityCard data={null} />
         </div>
 
-        {/* Coluna B — Controls */}
+        {/* Coluna B — Controls + Gate Promotion */}
         <div className="space-y-4">
           <QuickActions
             armState={opsStatus?.arm_state || "DISARMED"}
             gate={opsStatus?.gate || "G0"}
             onActionComplete={handleActionComplete}
           />
+
+          {/* Gate Promotion Panel — BLOCO B */}
+          <GatePromotionPanel
+            opsStatus={gateOpsStatus}
+            onActionComplete={handleActionComplete}
+          />
         </div>
 
-        {/* Coluna C — Brain Cards */}
+        {/* Coluna C — Brain Cards + Why No Trade */}
         <div className="space-y-4">
+          {/* Why No Trade Panel — BLOCO C */}
+          <WhyNoTradeCockpit />
+
+          {/* Brain Cards */}
           {BRAIN_IDS.map((id) => {
             const data = getBrainData(id);
             return (
