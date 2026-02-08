@@ -52,8 +52,19 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
       onActionComplete();
     } catch (err) {
       console.error(`Failed to ${activeAction}:`, err);
-      setTickResult(`Erro: ${(err as Error).message}`);
-      setTimeout(() => setTickResult(null), 5000);
+      
+      // Tratamento específico para erro 409 (Conflict) no ARM
+      const apiError = err as { status?: number; body?: { message?: string } };
+      if (activeAction === "ARM" && apiError.status === 409) {
+        setTickResult(
+          "Não é possível armar em G0 (Shadow Mode). Mude o gate via /config primeiro."
+        );
+      } else {
+        setTickResult(
+          `Erro ${apiError.status || ""}: ${apiError.body?.message || (err as Error).message}`
+        );
+      }
+      setTimeout(() => setTickResult(null), 8000);
     } finally {
       setLoading(false);
       setActiveAction(null);
