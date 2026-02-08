@@ -8,16 +8,18 @@ import { cn } from "@/lib/utils";
 
 interface QuickActionsProps {
   armState: string;
+  gate?: string;
   onActionComplete: () => void;
 }
 
 type ActionType = "ARM" | "DISARM" | "KILL" | "TICK" | null;
 
-export function QuickActions({ armState, onActionComplete }: QuickActionsProps) {
+export function QuickActions({ armState, gate, onActionComplete }: QuickActionsProps) {
   const [activeAction, setActiveAction] = useState<ActionType>(null);
   const [loading, setLoading] = useState(false);
   const [tickResult, setTickResult] = useState<string | null>(null);
   const isOperator = canOperate();
+  const isShadowMode = gate === "G0";
 
   const handleConfirm = async (reason: string) => {
     if (!activeAction) return;
@@ -94,6 +96,14 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
     }
   };
 
+  // ARM está desabilitado em G0 (Shadow Mode) — botão visível mas disabled com tooltip
+  const armDisabled = !isOperator || isShadowMode;
+  const armTooltip = !isOperator
+    ? "Requer role Operator ou Admin"
+    : isShadowMode
+    ? "ARM indisponível em G0 (Shadow Mode). O sistema precisa estar em G1+ para armar. Mude o gate via /config primeiro."
+    : "Armar sistema — autoriza execução de comandos pelo tick/scheduler";
+
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="text-xs font-medium uppercase text-muted-foreground mb-3">
@@ -116,25 +126,32 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
       )}
 
       <div className="space-y-2">
-        {/* ARM — sempre visível quando DISARMED */}
+        {/* ARM — visível quando DISARMED, desabilitado em G0 com tooltip explicativo */}
         {(armState === "DISARMED" || armState === "—") && (
-          <button
-            onClick={() => setActiveAction("ARM")}
-            disabled={!isOperator}
-            title={
-              isOperator
-                ? "Armar sistema — autoriza execução de comandos pelo tick/scheduler"
-                : "Requer role Operator ou Admin"
-            }
-            className={cn(
-              "w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
-              isOperator
-                ? "bg-emerald-600 text-white hover:bg-emerald-700"
-                : "bg-secondary text-muted-foreground cursor-not-allowed"
+          <div className="relative group">
+            <button
+              onClick={() => !armDisabled && setActiveAction("ARM")}
+              disabled={armDisabled}
+              title={armTooltip}
+              className={cn(
+                "w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
+                !armDisabled
+                  ? "bg-emerald-600 text-white hover:bg-emerald-700"
+                  : "bg-secondary text-muted-foreground cursor-not-allowed opacity-50"
+              )}
+            >
+              ARM System
+            </button>
+            {/* Tooltip visual para G0 */}
+            {isShadowMode && isOperator && (
+              <div className="mt-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5">
+                <p className="text-[10px] text-amber-400 leading-relaxed">
+                  ARM indisponível em G0 (Shadow Mode). O pipeline executa em modo observação.
+                  Para armar, mude o gate para G1+ via configuração.
+                </p>
+              </div>
             )}
-          >
-            ARM System
-          </button>
+          </div>
         )}
 
         {/* DISARM — sempre visível quando ARMED */}
@@ -164,7 +181,7 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
           disabled={!isOperator}
           title={
             isOperator
-              ? "Executa um ciclo manual de decisão (MCL → Brains → PM → EHM). Requer sistema ARMED."
+              ? "Executa um ciclo manual de decisão (MCL → Brains → PM). Funciona em qualquer gate."
               : "Requer role Operator ou Admin"
           }
           className={cn(
@@ -288,7 +305,7 @@ export function QuickActions({ armState, onActionComplete }: QuickActionsProps) 
         onClose={() => setActiveAction(null)}
         onConfirm={() => handleConfirm("")}
         title="Executar Tick Manual"
-        description="Isto irá executar um ciclo completo de decisão: MCL_SNAPSHOT → BRAIN_INTENT → PM_DECISION → EHM_ACTION. Os eventos aparecerão em /decisions/live. Sistema deve estar ARMED."
+        description="Isto irá executar um ciclo completo de decisão: MCL_SNAPSHOT → BRAIN_INTENT → PM_DECISION. Os eventos aparecerão em /decisions/live."
         confirmText="RUN TICK"
         requireReason={false}
         loading={loading}

@@ -177,6 +177,7 @@ export default function CockpitPage() {
         <div className="space-y-4">
           <QuickActions
             armState={opsStatus?.arm_state || "DISARMED"}
+            gate={opsStatus?.gate || "G0"}
             onActionComplete={handleActionComplete}
           />
         </div>
