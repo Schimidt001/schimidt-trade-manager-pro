@@ -113,6 +113,8 @@ export function AppShell({ children }: AppShellProps) {
   const [authenticated, setAuthenticated] = useState(false);
   const [sseStatus, setSseStatus] = useState<SSEStatus>("disconnected");
   const [mounted, setMounted] = useState(false);
+  const [mockMode, setMockMode] = useState(false);
+  const [executorMode, setExecutorMode] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     setMounted(true);
@@ -133,6 +135,27 @@ export function AppShell({ children }: AppShellProps) {
     }
   }, [authenticated]);
 
+  // Fetch ops/status para mock_mode e executor_mode
+  useEffect(() => {
+    if (!authenticated) return;
+    let cancelled = false;
+    const fetchStatus = async () => {
+      try {
+        const data = await apiGet("/ops/status") as {
+          mock_mode?: boolean;
+          executor_status?: { mode?: string };
+        };
+        if (!cancelled) {
+          setMockMode(!!data.mock_mode);
+          setExecutorMode(data.executor_status?.mode);
+        }
+      } catch { /* ignore */ }
+    };
+    fetchStatus();
+    const interval = setInterval(fetchStatus, 15_000);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, [authenticated]);
+
   if (!mounted) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
@@ -149,7 +172,7 @@ export function AppShell({ children }: AppShellProps) {
     <div className="flex h-screen overflow-hidden bg-background">
       <SideNav />
       <div className="flex flex-1 flex-col overflow-hidden">
-        <TopBar />
+        <TopBar mockMode={mockMode} executorMode={executorMode} />
         {/* SSE disconnected banner */}
         {(sseStatus === "error" || sseStatus === "disconnected") && (
           <AlertBanner variant="warning" className="mx-4 mt-2">

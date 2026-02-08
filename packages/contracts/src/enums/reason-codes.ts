@@ -77,6 +77,28 @@ export enum ReasonCode {
   AUDIT_MANUAL_ACTION = "AUDIT_MANUAL_ACTION",
   AUDIT_SYSTEM_RESTART = "AUDIT_SYSTEM_RESTART",
   AUDIT_PERMISSION_CHANGE = "AUDIT_PERMISSION_CHANGE",
+
+  // ── Gate Promotion ────────────────────────────────────────
+  GATE_PROMOTED = "GATE_PROMOTED",
+  GATE_PREREQ_MISSING_MCL_SNAPSHOT = "GATE_PREREQ_MISSING_MCL_SNAPSHOT",
+  GATE_PREREQ_MISSING_BRAIN_INTENT = "GATE_PREREQ_MISSING_BRAIN_INTENT",
+  GATE_PREREQ_MISSING_PM_DECISION = "GATE_PREREQ_MISSING_PM_DECISION",
+  GATE_PREREQ_MISSING_LEDGER = "GATE_PREREQ_MISSING_LEDGER",
+  GATE_PREREQ_MISSING_EXECUTOR = "GATE_PREREQ_MISSING_EXECUTOR",
+  GATE_PREREQ_MISSING_RBAC = "GATE_PREREQ_MISSING_RBAC",
+  GATE_INVALID_TRANSITION = "GATE_INVALID_TRANSITION",
+
+  // ── Mock ─────────────────────────────────────────────────
+  MOCK_TICK = "MOCK_TICK",
+  MOCK_MCL_SNAPSHOT = "MOCK_MCL_SNAPSHOT",
+  MOCK_BRAIN_INTENT = "MOCK_BRAIN_INTENT",
+  MOCK_BRAIN_SKIP = "MOCK_BRAIN_SKIP",
+  MOCK_PM_DECISION = "MOCK_PM_DECISION",
+  MOCK_EXECUTOR_COMMAND = "MOCK_EXECUTOR_COMMAND",
+
+  // ── Executor Simulation ──────────────────────────────────
+  EXEC_SIMULATED_COMMAND = "EXEC_SIMULATED_COMMAND",
+  EXEC_SIMULATED_NOOP = "EXEC_SIMULATED_NOOP",
 }
 
 /**
@@ -156,6 +178,28 @@ export const REASON_CODE_CATALOG: Readonly<Record<ReasonCode, string>> = {
   [ReasonCode.AUDIT_MANUAL_ACTION]: "Ação manual executada por operador",
   [ReasonCode.AUDIT_SYSTEM_RESTART]: "Reinício do sistema registrado",
   [ReasonCode.AUDIT_PERMISSION_CHANGE]: "Alteração de permissões registrada",
+
+  // Gate Promotion
+  [ReasonCode.GATE_PROMOTED]: "Gate promovido com sucesso",
+  [ReasonCode.GATE_PREREQ_MISSING_MCL_SNAPSHOT]: "Pré-requisito ausente: MCL_SNAPSHOT não gerado pelo tick",
+  [ReasonCode.GATE_PREREQ_MISSING_BRAIN_INTENT]: "Pré-requisito ausente: BRAIN_INTENT ou BRAIN_SKIP não gerado",
+  [ReasonCode.GATE_PREREQ_MISSING_PM_DECISION]: "Pré-requisito ausente: PM_DECISION não gerado",
+  [ReasonCode.GATE_PREREQ_MISSING_LEDGER]: "Pré-requisito ausente: Ledger/SSE não funcional",
+  [ReasonCode.GATE_PREREQ_MISSING_EXECUTOR]: "Pré-requisito ausente: Executor não conectado",
+  [ReasonCode.GATE_PREREQ_MISSING_RBAC]: "Pré-requisito ausente: RBAC não validado (requer Admin)",
+  [ReasonCode.GATE_INVALID_TRANSITION]: "Transição de gate inválida",
+
+  // Mock
+  [ReasonCode.MOCK_TICK]: "Tick executado em modo mock",
+  [ReasonCode.MOCK_MCL_SNAPSHOT]: "MCL Snapshot gerado em modo mock",
+  [ReasonCode.MOCK_BRAIN_INTENT]: "Brain Intent gerado em modo mock",
+  [ReasonCode.MOCK_BRAIN_SKIP]: "Brain Skip em modo mock",
+  [ReasonCode.MOCK_PM_DECISION]: "PM Decision gerada em modo mock",
+  [ReasonCode.MOCK_EXECUTOR_COMMAND]: "Comando de executor em modo mock",
+
+  // Executor Simulation
+  [ReasonCode.EXEC_SIMULATED_COMMAND]: "Comando simulado pelo executor (paper trading)",
+  [ReasonCode.EXEC_SIMULATED_NOOP]: "Nenhuma ação de execução necessária (NOOP simulado)",
 } as const;
 
 // ─── Type inferido ───────────────────────────────────────────

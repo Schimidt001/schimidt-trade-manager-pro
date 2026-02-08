@@ -12,6 +12,8 @@ interface GlobalStatusBarProps {
   executorConnectivity: string;
   executorMode?: string;
   nextScheduledRun?: string;
+  mockMode?: boolean;
+  riskOff?: boolean;
 }
 
 function armVariant(state: string): "success" | "danger" | "warning" | "muted" {
@@ -95,6 +97,8 @@ export function GlobalStatusBar({
   executorConnectivity,
   executorMode,
   nextScheduledRun,
+  mockMode,
+  riskOff,
 }: GlobalStatusBarProps) {
   // Derive executor mode label
   const executorModeLabel = executorMode
@@ -182,6 +186,36 @@ export function GlobalStatusBar({
           {globalMode || "—"}
         </Badge>
       </div>
+
+      {/* Mock Mode indicator */}
+      {mockMode && (
+        <>
+          <div className="h-6 w-px bg-border" />
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center gap-1 rounded border border-amber-500/50 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-400 animate-pulse"
+              title="MOCK MODE: Dados de mercado são simulados. Todos os eventos estão marcados com mock=true."
+            >
+              MOCK
+            </span>
+          </div>
+        </>
+      )}
+
+      {/* Risk Off indicator */}
+      {riskOff && (
+        <>
+          <div className="h-6 w-px bg-border" />
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center gap-1 rounded border border-red-500/50 bg-red-500/10 px-2 py-0.5 text-[10px] font-bold text-red-400 animate-pulse"
+              title="RISK OFF: Kill switch ativado. Sistema desarmado e em modo de proteção."
+            >
+              RISK OFF
+            </span>
+          </div>
+        </>
+      )}
 
       <div className="h-6 w-px bg-border" />
 

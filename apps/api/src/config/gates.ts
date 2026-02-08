@@ -22,6 +22,17 @@ export interface OperationalState {
   provider_states: Record<string, string>;
   /** Executor connectivity (placeholder até Agente 6) */
   executor_connectivity: string;
+  /** Mock mode: true quando tick usa dados simulados (sem provider de mercado real) */
+  mock_mode: boolean;
+  /** Risk off: true quando kill switch foi ativado */
+  risk_off: boolean;
+  /** Resultado do último tick (para validação de gate promotion) */
+  last_tick_result: {
+    has_mcl_snapshot: boolean;
+    has_brain_intent_or_skip: boolean;
+    has_pm_decision: boolean;
+    events_persisted: number;
+  } | null;
 }
 
 /** Estado operacional singleton (em memória) */
@@ -32,6 +43,9 @@ let _state: OperationalState = {
   execution_state: "OK",
   provider_states: {},
   executor_connectivity: "unknown",
+  mock_mode: true,
+  risk_off: false,
+  last_tick_result: null,
 };
 
 export function getOperationalState(): OperationalState {
@@ -60,6 +74,18 @@ export function setProviderState(provider: string, state: string): void {
 
 export function setExecutorConnectivity(state: string): void {
   _state.executor_connectivity = state;
+}
+
+export function setMockMode(mock: boolean): void {
+  _state.mock_mode = mock;
+}
+
+export function setRiskOff(riskOff: boolean): void {
+  _state.risk_off = riskOff;
+}
+
+export function setLastTickResult(result: OperationalState["last_tick_result"]): void {
+  _state.last_tick_result = result;
 }
 
 /**

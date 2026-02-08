@@ -102,9 +102,16 @@ export default function CalendarPage() {
               </div>
             ))
           ) : (
-            <span className="text-xs text-muted-foreground">
-              Sem dados de provedores disponíveis
-            </span>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2">
+                <StatusDot status="warn" />
+                <span className="text-xs font-semibold text-amber-400">DEGRADED: NO_PROVIDER</span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                Nenhum news provider configurado. Eventos econômicos não estão sendo carregados.
+                Configure um provider (ex.: ForexFactory, Investing.com adapter) para habilitar o calendário.
+              </span>
+            </div>
           )}
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-muted-foreground">Fallback:</span>
@@ -151,11 +158,18 @@ export default function CalendarPage() {
 
         {calendarEvents.length === 0 ? (
           <div className="py-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              Sem eventos carregados. Endpoint de calendário ainda não disponível.
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10">
+              <svg className="h-6 w-6 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+            </div>
+            <h3 className="text-sm font-semibold text-foreground">News provider não configurado</h3>
+            <p className="mt-1 text-xs text-muted-foreground">
+              O calendário econômico requer um news provider ativo (ex.: ForexFactory, Investing.com).
+              Sem provider, os eventos do dia não são carregados.
             </p>
-            <p className="text-[10px] text-muted-foreground/60 mt-1">
-              Quando disponível, os eventos serão carregados automaticamente com hora, impacto, moeda e valores.
+            <p className="mt-2 text-xs text-muted-foreground/70">
+              <strong>Status:</strong> DEGRADED: NO_PROVIDER — Funcionalidade disponível após configuração do adapter de notícias.
             </p>
           </div>
         ) : (

@@ -24,6 +24,8 @@ interface OpsStatus {
     [key: string]: unknown;
   } | null;
   next_scheduled_run?: string;
+  mock_mode?: boolean;
+  risk_off?: boolean;
 }
 
 const BRAIN_IDS = ["A2", "B3", "C3", "D2"];
@@ -162,6 +164,8 @@ export default function CockpitPage() {
         executorConnectivity={opsStatus?.executor_connectivity || "unknown"}
         executorMode={executorMode}
         nextScheduledRun={nextScheduledRun}
+        mockMode={opsStatus?.mock_mode}
+        riskOff={opsStatus?.risk_off}
       />
 
       {/* 3 Columns Layout */}

@@ -59,7 +59,7 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
       const apiError = err as { status?: number; body?: { message?: string } };
       if (activeAction === "ARM" && apiError.status === 409) {
         setTickResult(
-          "Não é possível armar em G0 (Shadow Mode). Mude o gate via /config primeiro."
+          "Não é possível armar em G0 (Shadow Mode). Promova o gate via POST /ops/gate/promote primeiro."
         );
       } else {
         setTickResult(
@@ -101,7 +101,7 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
   const armTooltip = !isOperator
     ? "Requer role Operator ou Admin"
     : isShadowMode
-    ? "ARM indisponível em G0 (Shadow Mode). O sistema precisa estar em G1+ para armar. Mude o gate via /config primeiro."
+    ? "ARM indisponível em G0 (Shadow Mode). O sistema precisa estar em G1+ para armar. Promova o gate via POST /ops/gate/promote."
     : "Armar sistema — autoriza execução de comandos pelo tick/scheduler";
 
   return (
@@ -147,7 +147,7 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
               <div className="mt-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1.5">
                 <p className="text-[10px] text-amber-400 leading-relaxed">
                   ARM indisponível em G0 (Shadow Mode). O pipeline executa em modo observação.
-                  Para armar, mude o gate para G1+ via configuração.
+                  Para armar, promova o gate para G1+ via <code className="font-mono">POST /ops/gate/promote</code>.
                 </p>
               </div>
             )}

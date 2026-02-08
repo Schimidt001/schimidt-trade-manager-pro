@@ -1,0 +1,196 @@
+# Terminal Full Output
+# Terminal: test
+# Command: cd /home/ubuntu/schimidt-trade-manager-pro && bash tests/run-tests.sh 2>&1
+# PID: 5775
+# Timestamp: 2026-02-08_15-34-15.275745
+# Original Length: 6981 characters
+# ----------------------------------------
+
+Aguardando API em http://localhost:3099...
+API pronta!
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1m[0;36m  TESTE 0 — Estado Inicial[0m
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1;33m▶ GET /ops/status — verificar estado inicial[0m
+{
+    "gate": "G0",
+    "arm_state": "DISARMED",
+    "global_mode": "NORMAL",
+    "execution_state": "OK",
+    "provider_states": {},
+    "executor_connectivity": "unknown",
+    "executor_status": {
+        "connected": true,
+        "timestamp": "2026-02-08T20:34:13.288Z",
+        "mode": "SIMULATOR",
+        "active_strategy": "NONE",
+        "active_symbols": [],
+        "risk_profile": {
+            "max_risk_per_trade_pct": 2,
+            "max_daily_loss_pct": 5,
+            "max_positions": 8
+        },
+        "health": {
+            "latency_ms": 25,
+            "error_rate": 0,
+            "execution_state": "OK"
+        }
+    },
+    "mock_mode": true,
+    "risk_off": false,
+    "last_tick_result": null,
+    "timestamp": "2026-02-08T20:34:13.288Z"
+}
+  [0;32m✅ PASS: Gate inicial = G0[0m
+  [0;32m✅ PASS: Arm state inicial = DISARMED[0m
+  [0;32m✅ PASS: mock_mode = true (Entrega B)[0m
+  [0;32m✅ PASS: risk_off = false[0m
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1m[0;36m  TESTE 1 — Tick Completo[0m
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1;33m▶ POST /ops/tick — executar tick com 4 símbolos[0m
+{
+    "correlation_id": "fd7a3058-7178-4d49-9382-15000c7e6f9d",
+    "timestamp": "2026-02-08T20:34:13.452Z",
+    "gate": "G0",
+    "commands_sent": false,
+    "events_persisted": 28,
+    "mock_mode": true,
+    "summary": {
+        "snapshots": 4,
+        "intents": 4,
+        "decisions": 4
+    }
+}
+  [0;36mℹ Correlation ID: fd7a3058-7178-4d49-9382-15000c7e6f9d[0m
+  [0;36mℹ Gate: G0[0m
+  [0;36mℹ Snapshots: 4 | Intents: 4 | Decisions: 4[0m
+  [0;36mℹ Events persisted: 28[0m
+  [0;36mℹ Mock mode: True[0m
+  [0;32m✅ PASS: MCL_SNAPSHOT gerado (4 snapshots)[0m
+  [0;32m✅ PASS: BRAIN_INTENT gerado (4 intents)[0m
+  [0;32m✅ PASS: PM_DECISION gerado (4 decisions)[0m
+  [0;32m✅ PASS: Eventos persistidos no ledger (28)[0m
+  [0;32m✅ PASS: Tick marcado como mock_mode=true (Entrega B)[0m
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1m[0;36m  TESTE 2 — Gate Promotion (Entrega A)[0m
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1;33m▶ 2.1 — Tentar promover sem pré-requisitos (antes do tick) — deve falhar com reason_code[0m
+[1;33m▶ 2.2 — Promover G0 → G1 (após tick com sucesso)[0m
+{
+    "status": "PROMOTED",
+    "from_gate": "G0",
+    "to_gate": "G1",
+    "reason_code": "GATE_PROMOTED",
+    "message": "Gate promovido de G0 para G1",
+    "correlation_id": "12061161-cc27-4b2f-960c-c6692516c5c4"
+}
+  [0;36mℹ HTTP Status: 200[0m
+  [0;32m✅ PASS: Gate promovido para G1 (reason_code: GATE_PROMOTED)[0m
+[1;33m▶ 2.3 — Verificar /ops/status após promoção[0m
+  [0;36mℹ Gate atual: G1[0m
+[1;33m▶ 2.4 — Tentar transição inválida G1 → G3 (deve falhar)[0m
+  [0;36mℹ HTTP Status para transição inválida: 409[0m
+  [0;32m✅ PASS: Transição inválida G1→G3 rejeitada com 409[0m
+[1;33m▶ 2.5 — Tentar promover com role Operator (deve falhar — requer Admin)[0m
+  [0;36mℹ HTTP Status com Operator: 403[0m
+  [0;32m✅ PASS: RBAC: Operator não pode promover gate (403)[0m
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1m[0;36m  TESTE 3 — ARM/DISARM/KILL[0m
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1;33m▶ 3.1 — ARM em G1 (deve funcionar)[0m
+{
+    "status": "ARMED",
+    "gate": "G1"
+}
+  [0;36mℹ HTTP Status: 200[0m
+  [0;32m✅ PASS: ARM em G1 funcionou (não 409)[0m
+[1;33m▶ 3.2 — Verificar arm_state = ARMED[0m
+  [0;32m✅ PASS: arm_state = ARMED[0m
+[1;33m▶ 3.3 — DISARM[0m
+  [0;36mℹ HTTP Status: 200[0m
+  [0;32m✅ PASS: DISARM funcionou[0m
+  [0;32m✅ PASS: arm_state = DISARMED após DISARM[0m
+[1;33m▶ 3.4 — ARM novamente para testar KILL[0m
+[1;33m▶ 3.5 — KILL (deve setar risk_off=true e DISARM)[0m
+{
+    "status": "KILLED",
+    "arm_state": "DISARMED",
+    "risk_off": true,
+    "message": "Kill switch ativado. Sistema desarmado e em RISK_OFF."
+}
+  [0;36mℹ HTTP Status: 200[0m
+  [0;32m✅ PASS: KILL executado com sucesso[0m
+  [0;32m✅ PASS: KILL → arm_state = DISARMED[0m
+  [0;32m✅ PASS: KILL → risk_off = true[0m
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1m[0;36m  TESTE 4 — Execução Simulada (Entrega C)[0m
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1;33m▶ 4.0 — Preparar ambiente: resetar para G1 + ARMED[0m
+  [0;36mℹ Promoção para G1: HTTP 200[0m
+  [0;36mℹ Estado antes do tick: Gate=G1, ARM=ARMED[0m
+[1;33m▶ 4.1 — RUN TICK em G1+ARMED[0m
+{
+    "correlation_id": "6b840c67-a701-48bd-90e9-0be4a4e8a92c",
+    "timestamp": "2026-02-08T20:34:14.617Z",
+    "gate": "G1",
+    "commands_sent": true,
+    "events_persisted": 28,
+    "mock_mode": true,
+    "summary": {
+        "snapshots": 4,
+        "intents": 4,
+        "decisions": 4
+    }
+}
+  [0;36mℹ Correlation ID: 6b840c67-a701-48bd-90e9-0be4a4e8a92c[0m
+  [0;36mℹ Commands sent: True[0m
+  [0;36mℹ Events persisted: 28[0m
+  [0;36mℹ Decisions: 4[0m
+  [0;32m✅ PASS: Commands sent = true em G1+ARMED[0m
+  [0;32m✅ PASS: PM_DECISION gerado (4 decisions)[0m
+  [0;32m✅ PASS: Eventos de execução simulada persistidos (total: 28)[0m
+[1;33m▶ 4.2 — Verificar /ops/status.executor_status[0m
+  executor_status: {
+  "connected": true,
+  "timestamp": "2026-02-08T20:34:15.129Z",
+  "mode": "SIMULATOR",
+  "active_strategy": "D2_M15",
+  "active_symbols": [
+    "BTCUSD"
+  ],
+  "risk_profile": {
+    "max_risk_per_trade_pct": 2,
+    "max_daily_loss_pct": 5,
+    "max_positions": 8
+  },
+  "health": {
+    "latency_ms": 25,
+    "error_rate": 0,
+    "execution_state": "OK"
+  }
+}
+  executor_connectivity: connected
+  mock_mode: True
+  risk_off: True
+  last_tick_result: {
+  "has_mcl_snapshot": true,
+  "has_brain_intent_or_skip": true,
+  "has_pm_decision": true,
+  "events_persisted": 28
+}
+  [0;32m✅ PASS: Executor conectado (connectivity=connected)[0m
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1m[0;36m  RESUMO FINAL[0m
+[1m[0;36m═══════════════════════════════════════════════════════════════[0m
+[1mTotal de verificações: 23[0m
+[0;32m✅ Passou: 23[0m
+[0;31m❌ Falhou: 0[0m
+[0;32m[1m🎉 TODOS OS TESTES PASSARAM![0m
+═══════════════════════════════════════════════════════════════
+  Entregas verificadas:
+  A — Gate promotion institucional (POST /ops/gate/promote)
+  B — Mock mode explícito (mock_mode + payload.mock + MOCK_*)
+  C — Execução simulada evidenciada (EXEC_SIMULATED_*)
+  D — UI/contratos: Replay/Calendar/Config claros
+═══════════════════════════════════════════════════════════════

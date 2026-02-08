@@ -301,6 +301,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
   const correlationId = newCorrelationId();
   const timestamp = nowISO();
   const opsState = getOperationalState();
+  const isMock = opsState.mock_mode;
 
   const snapshots: MclSnapshot[] = [];
   const intents: BrainIntent[] = [];
@@ -326,8 +327,8 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       component: "MCL",
       symbol: snapshot.symbol,
       brain_id: null,
-      reason_code: snapshot.why.reason_code,
-      payload: snapshot as unknown as Record<string, unknown>,
+      reason_code: isMock ? ReasonCode.MOCK_MCL_SNAPSHOT : snapshot.why.reason_code,
+      payload: { ...(snapshot as unknown as Record<string, unknown>), mock: isMock },
     });
 
     // ─── 2. Brains ──────────────────────────────────────────────
@@ -356,7 +357,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
           component: brainToComponent(brainId),
           symbol,
           brain_id: brainId,
-          reason_code: ReasonCode.MCL_STRUCTURE_CHANGE,
+          reason_code: isMock ? ReasonCode.MOCK_BRAIN_SKIP : ReasonCode.MCL_STRUCTURE_CHANGE,
           payload: {
             event_id: brainEventId,
             correlation_id: correlationId,
@@ -367,6 +368,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
             skip_reason: `${brainId} não encontrou edge no contexto atual`,
             market_states: snapshot.market_states,
             metrics: snapshot.metrics,
+            mock: isMock,
           },
         });
         continue;
@@ -383,8 +385,8 @@ export async function runTick(input: TickInput): Promise<TickResult> {
         component: brainToComponent(brainId),
         symbol: intent.symbol,
         brain_id: intent.brain_id,
-        reason_code: intent.why.reason_code,
-        payload: intent as unknown as Record<string, unknown>,
+        reason_code: isMock ? ReasonCode.MOCK_BRAIN_INTENT : intent.why.reason_code,
+        payload: { ...(intent as unknown as Record<string, unknown>), mock: isMock },
       });
     }
   }
@@ -417,8 +419,8 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       component: "PM",
       symbol: intent.symbol,
       brain_id: intent.brain_id,
-      reason_code: decision.why.reason_code,
-      payload: decision as unknown as Record<string, unknown>,
+      reason_code: isMock ? ReasonCode.MOCK_PM_DECISION : decision.why.reason_code,
+      payload: { ...(decision as unknown as Record<string, unknown>), mock: isMock },
     });
   }
 
@@ -434,7 +436,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
     }
   }
 
-  // ─── 6. Comandos ao executor ────────────────────────────────
+  // ─── 6. Comandos ao executor ──────────────────────────────────
   const commandsSent = canSendCommands();
   if (commandsSent) {
     const mappingConfig: MappingConfig = {
@@ -474,6 +476,58 @@ export async function runTick(input: TickInput): Promise<TickResult> {
           console.error("Erro ao enviar comandos ao executor:", err);
         }
       }
+    }
+  }
+
+  // ─── 7. Entrega C: Execução simulada evidenciada ────────────
+  // Para cada PM_DECISION, gerar evento de execução simulada
+  // (EXEC_SIMULATED_COMMAND ou EXEC_SIMULATED_NOOP) no ledger.
+  // Isso garante rastro auditável de que a decisão "virou ação".
+  for (let i = 0; i < decisions.length; i++) {
+    const decision = decisions[i];
+    const intent = arbitratedIntents[i];
+    if (!decision || !intent) continue;
+
+    const isAllowed = decision.decision === "ALLOW";
+    const simEventId = newEventId();
+
+    const simEvent: LedgerEventInput = {
+      event_id: simEventId,
+      correlation_id: correlationId,
+      timestamp: nowISO(),
+      severity: "INFO",
+      event_type: isAllowed ? "EXEC_SIMULATED_COMMAND" : "EXEC_SIMULATED_NOOP",
+      component: "SYSTEM",
+      symbol: intent.symbol,
+      brain_id: intent.brain_id,
+      reason_code: isAllowed ? ReasonCode.EXEC_SIMULATED_COMMAND : ReasonCode.EXEC_SIMULATED_NOOP,
+      payload: {
+        event_id: simEventId,
+        correlation_id: correlationId,
+        timestamp: nowISO(),
+        severity: "INFO",
+        mock: isMock,
+        gate: opsState.gate,
+        armed: opsState.arm_state === "ARMED",
+        commands_sent: commandsSent,
+        decision: decision.decision,
+        intent_type: intent.intent_type,
+        symbol: intent.symbol,
+        brain_id: intent.brain_id,
+        proposed_risk_pct: intent.proposed_risk_pct,
+        trade_plan: intent.trade_plan,
+        risk_adjustments: decision.risk_adjustments,
+        simulation_label: isAllowed
+          ? `SIMULATOR: ${intent.intent_type} ${intent.symbol} (${intent.brain_id})`
+          : `NOOP: ${decision.decision} ${intent.symbol} (${intent.brain_id})`,
+      },
+    };
+
+    try {
+      const inserted = await persistEvent(simEvent);
+      if (inserted) eventsPersisted++;
+    } catch (err) {
+      console.error(`Erro ao persistir evento simulado ${simEventId}:`, err);
     }
   }
 
