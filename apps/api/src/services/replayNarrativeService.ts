@@ -154,11 +154,19 @@ const ALL_BRAIN_IDS = ["A2", "B3", "C3", "D2"];
 // ─── Helpers ────────────────────────────────────────────────────
 
 /**
- * Formata timestamp ISO para HH:MM:SS (UTC-3 / São Paulo).
+ * Converte Date ou string para ISO string.
  */
-function formatTimeBR(iso: string): string {
+function toISOString(ts: Date | string): string {
+  if (ts instanceof Date) return ts.toISOString();
+  return String(ts);
+}
+
+/**
+ * Formata timestamp (Date ou string ISO) para HH:MM:SS (UTC-3 / São Paulo).
+ */
+function formatTimeBR(ts: Date | string): string {
   try {
-    const d = new Date(iso);
+    const d = ts instanceof Date ? ts : new Date(ts);
     return d.toLocaleTimeString("pt-BR", {
       timeZone: "America/Sao_Paulo",
       hour: "2-digit",
@@ -167,7 +175,7 @@ function formatTimeBR(iso: string): string {
       hour12: false,
     });
   } catch {
-    return iso;
+    return String(ts);
   }
 }
 
@@ -378,14 +386,18 @@ function categorizeEvent(eventType: string): NarrativeTimelineEntry["category"] 
  */
 export function buildNarrativeTimeline(events: LedgerEventRow[]): NarrativeTimelineEntry[] {
   return events
-    .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+    .sort((a, b) => {
+      const ta = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+      const tb = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+      return ta - tb;
+    })
     .map((event) => {
       const payload = (typeof event.payload === "string"
         ? JSON.parse(event.payload)
         : event.payload) as Record<string, unknown>;
 
       return {
-        timestamp: event.timestamp,
+        timestamp: toISOString(event.timestamp),
         time: formatTimeBR(event.timestamp),
         component: event.component,
         event_type: event.event_type,
@@ -437,7 +449,7 @@ export function buildBrainExplanations(events: LedgerEventRow[]): BrainSkipExpla
         symbol: lastIntent.symbol ?? (payload.symbol as string) ?? null,
         skip_reason_code: null,
         skip_explanation: `Cérebro ${brainId} gerou intent: ${payload.intent_type ?? "UNKNOWN"}${lastIntent.symbol ? ` para ${lastIntent.symbol}` : ""}`,
-        timestamp: lastIntent.timestamp,
+        timestamp: toISOString(lastIntent.timestamp),
       });
     } else if (skips.length > 0) {
       // Cérebro não atuou — pegar o último skip
@@ -458,7 +470,7 @@ export function buildBrainExplanations(events: LedgerEventRow[]): BrainSkipExpla
         symbol: lastSkip.symbol ?? null,
         skip_reason_code: reasonCode,
         skip_explanation: reason,
-        timestamp: lastSkip.timestamp,
+        timestamp: toISOString(lastSkip.timestamp),
       });
     } else {
       // Cérebro não foi executado neste dia
