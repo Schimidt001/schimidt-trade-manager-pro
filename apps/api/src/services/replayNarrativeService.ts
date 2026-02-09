@@ -97,6 +97,10 @@ export interface DayNarrativeSummary {
     audit_logs: number;
     errors: number;
     warnings: number;
+    /** Fills simulados executados */
+    exec_fills: number;
+    /** Posições abertas no executor simulado */
+    exec_positions_opened: number;
   };
   /** Cérebros que atuaram */
   active_brains: string[];
