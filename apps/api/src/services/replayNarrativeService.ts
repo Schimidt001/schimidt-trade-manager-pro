@@ -102,6 +102,21 @@ export interface DayNarrativeSummary {
     /** Posições abertas no executor simulado */
     exec_positions_opened: number;
   };
+  /** Day Totals - Agregação de múltiplos ticks */
+  day_totals: {
+    /** Total de ticks executados no dia */
+    total_ticks: number;
+    /** Ticks com PM_DECISION = ALLOW */
+    allow_count: number;
+    /** Ticks sem trade (BRAIN_SKIP ou PM_DENY) */
+    no_trade_ticks: number;
+    /** Comandos enviados ao executor */
+    commands_sent: number;
+    /** Fills confirmados */
+    fills: number;
+    /** Posições abertas */
+    positions_opened: number;
+  };
   /** Cérebros que atuaram */
   active_brains: string[];
   /** Cérebros que não atuaram */
@@ -110,6 +125,23 @@ export interface DayNarrativeSummary {
   symbols_involved: string[];
   /** Se o dia foi encerrado corretamente */
   day_closed_correctly: boolean;
+  /** Tick Summary - Resultado por tick (correlation_id) */
+  tick_summary: Array<{
+    /** ID de correlação do tick */
+    correlation_id: string;
+    /** Timestamp do primeiro evento do tick */
+    tick_start: string;
+    /** Resultado do tick */
+    tick_outcome: "FILL" | "ACTION_SENT" | "NO_TRADE" | "ERROR";
+    /** PM Decision neste tick */
+    pm_decision: "ALLOW" | "DENY" | "NONE" | null;
+    /** Houve fill neste tick */
+    had_fill: boolean;
+    /** Houve comando enviado neste tick */
+    had_command: boolean;
+    /** Símbolo envolvido (se houver) */
+    symbol: string | null;
+  }>;
 }
 
 /**
@@ -568,9 +600,12 @@ export function buildWhyNoTrade(events: LedgerEventRow[]): WhyNoTradeExplanation
 
   const hadTrade = approvals.length > 0 && hadSimulatedExecution;
 
-  // PM final decision
+  // PM final decision - CORREÇÃO: Agregar quando had_trade=true
   let pmFinalDecision: string | null = null;
-  if (pmDecisions.length > 0) {
+  if (hadTrade) {
+    // Quando houve trade, agregar as decisões do PM
+    pmFinalDecision = `${approvals.length} ALLOW, ${denials.length} DENY`;
+  } else if (pmDecisions.length > 0) {
     const lastPm = pmDecisions[pmDecisions.length - 1];
     const payload = (typeof lastPm.payload === "string" ? JSON.parse(lastPm.payload) : lastPm.payload) as Record<string, unknown>;
     pmFinalDecision = String(payload.decision_type ?? "NO_TRADE");
@@ -668,6 +703,93 @@ export function buildWhyNoTrade(events: LedgerEventRow[]): WhyNoTradeExplanation
 }
 
 /**
+ * Gera o resumo de cada tick (correlation_id) do dia.
+ */
+function buildTickSummary(events: LedgerEventRow[]): DayNarrativeSummary["tick_summary"] {
+  // Agrupar eventos por correlation_id
+  const tickGroups = new Map<string, LedgerEventRow[]>();
+  
+  for (const event of events) {
+    const corrId = event.correlation_id || "unknown";
+    if (!tickGroups.has(corrId)) {
+      tickGroups.set(corrId, []);
+    }
+    tickGroups.get(corrId)!.push(event);
+  }
+
+  const tickSummaries: DayNarrativeSummary["tick_summary"] = [];
+
+  for (const [correlationId, tickEvents] of tickGroups) {
+    // Ordenar eventos do tick por timestamp
+    const sortedEvents = tickEvents.sort((a, b) => {
+      const ta = a.timestamp instanceof Date ? a.timestamp.getTime() : new Date(a.timestamp).getTime();
+      const tb = b.timestamp instanceof Date ? b.timestamp.getTime() : new Date(b.timestamp).getTime();
+      return ta - tb;
+    });
+
+    const tickStart = toISOString(sortedEvents[0].timestamp);
+
+    // Verificar PM Decision neste tick
+    const pmDecisionEvent = sortedEvents.find((e) => e.event_type === "PM_DECISION");
+    let pmDecision: "ALLOW" | "DENY" | "NONE" | null = null;
+    if (pmDecisionEvent) {
+      const payload = (typeof pmDecisionEvent.payload === "string" 
+        ? JSON.parse(pmDecisionEvent.payload) 
+        : pmDecisionEvent.payload) as Record<string, unknown>;
+      const decision = String(payload.decision ?? "");
+      const dt = String(payload.decision_type ?? "");
+      if (decision === "ALLOW" || dt.includes("ALLOWED")) {
+        pmDecision = "ALLOW";
+      } else if (decision === "DENY" || dt.includes("DENIED")) {
+        pmDecision = "DENY";
+      } else {
+        pmDecision = "NONE";
+      }
+    }
+
+    // Verificar fill neste tick
+    const hadFill = sortedEvents.some((e) => e.event_type === "EXEC_SIMULATED_FILL" || e.event_type === "EXEC_POSITION_OPENED");
+
+    // Verificar comando enviado neste tick
+    const hadCommand = sortedEvents.some((e) => {
+      if (e.event_type !== "EXECUTOR_COMMAND") return false;
+      const payload = (typeof e.payload === "string" ? JSON.parse(e.payload) : e.payload) as Record<string, unknown>;
+      return payload.result_ok === true;
+    });
+
+    // Determinar outcome do tick
+    let tickOutcome: "FILL" | "ACTION_SENT" | "NO_TRADE" | "ERROR";
+    const hasError = sortedEvents.some((e) => e.severity === "ERROR");
+    
+    if (hasError) {
+      tickOutcome = "ERROR";
+    } else if (hadFill) {
+      tickOutcome = "FILL";
+    } else if (hadCommand) {
+      tickOutcome = "ACTION_SENT";
+    } else {
+      tickOutcome = "NO_TRADE";
+    }
+
+    // Símbolo envolvido
+    const symbol = sortedEvents.find((e) => e.symbol)?.symbol || null;
+
+    tickSummaries.push({
+      correlation_id: correlationId,
+      tick_start: tickStart,
+      tick_outcome: tickOutcome,
+      pm_decision: pmDecision,
+      had_fill: hadFill,
+      had_command: hadCommand,
+      symbol,
+    });
+  }
+
+  // Ordenar por tick_start
+  return tickSummaries.sort((a, b) => a.tick_start.localeCompare(b.tick_start));
+}
+
+/**
  * Gera o resumo narrativo completo do dia.
  */
 export function buildDaySummary(
@@ -725,12 +847,14 @@ export function buildDaySummary(
     return payload.result_ok === true;
   });
   
-  const hadSimulatedExecution = execFills.length > 0 || execPositionOpened.length > 0;
   const hadCommandsSent = commandsSent.length > 0;
 
   // Determinar outcome
   let outcome: DayNarrativeSummary["outcome"];
   let outcomeExplanation: string;
+
+  // REGRA CRÍTICA: Se fills > 0, outcome NUNCA pode ser NO_TRADE
+  const hasFills = execFills.length > 0 || execPositionOpened.length > 0;
 
   if (events.length === 0) {
     outcome = "EMPTY";
@@ -738,15 +862,17 @@ export function buildDaySummary(
   } else if (errors.length > 0 && mclSnapshots.length === 0) {
     outcome = "ERROR";
     outcomeExplanation = `Dia com ${errors.length} erro(s) e sem MCL snapshots. Pipeline pode não ter executado corretamente.`;
-  } else if (pmApprovals.length > 0 && hadSimulatedExecution) {
-    // CORREÇÃO: PM aprovou E houve execução simulada
+  } else if (hasFills) {
+    // REGRA: trade_executed = fills/positions_opened (NÃO commands)
     outcome = "TRADE_EXECUTED";
-    outcomeExplanation = `${pmApprovals.length} operação(ões) aprovada(s) e executada(s) em modo simulado. ${pmDenials.length > 0 ? `${pmDenials.length} negada(s).` : ""}`;
-  } else if (pmApprovals.length > 0 && hadCommandsSent && !hadSimulatedExecution) {
-    // CORREÇÃO 2: PM aprovou + comandos enviados = ARMED_ACTION_SENT (nunca NO_TRADE)
+    const fillCount = execFills.length;
+    const posCount = execPositionOpened.length;
+    outcomeExplanation = `${fillCount} fill(s) confirmado(s), ${posCount} posição(ões) aberta(s) em modo simulado. ${pmDenials.length > 0 ? `${pmDenials.length} operação(ões) negada(s).` : ""}`;
+  } else if (pmApprovals.length > 0 && hadCommandsSent) {
+    // PM aprovou + comandos enviados (sem fill) = PARTIAL (ARMED_ACTION_SENT)
     outcome = "PARTIAL";
-    outcomeExplanation = `${pmApprovals.length} operação(ões) aprovada(s) e comando(s) enviado(s), mas sem fill confirmado (ARMED_ACTION_SENT).`;
-  } else if (pmApprovals.length > 0 && !hadCommandsSent && !hadSimulatedExecution) {
+    outcomeExplanation = `${pmApprovals.length} operação(ões) aprovada(s), ${commandsSent.length} comando(s) enviado(s), mas sem fill confirmado (ARMED_ACTION_SENT).`;
+  } else if (pmApprovals.length > 0 && !hadCommandsSent) {
     // PM aprovou mas não houve comandos enviados (possível G0 ou executor down)
     outcome = "NO_TRADE";
     outcomeExplanation = `${pmApprovals.length} operação(ões) aprovada(s) pelo PM, mas sem comandos enviados (modo shadow ou executor indisponível).`;
@@ -844,10 +970,25 @@ export function buildDaySummary(
       exec_fills: execFills.length,
       exec_positions_opened: execPositionOpened.length,
     },
+    // Day Totals - Agregação de múltiplos ticks
+    day_totals: {
+      total_ticks: new Set(events.map((e) => e.correlation_id)).size,
+      allow_count: pmApprovals.length,
+      no_trade_ticks: new Set(
+        events
+          .filter((e) => e.event_type === "BRAIN_SKIP" || (e.event_type === "PM_DECISION" && pmDenials.some((d) => d.event_id === e.event_id)))
+          .map((e) => e.correlation_id)
+      ).size,
+      commands_sent: commandsSent.length,
+      fills: execFills.length,
+      positions_opened: execPositionOpened.length,
+    },
     active_brains: activeBrains,
     inactive_brains: inactiveBrains,
     symbols_involved: symbolsInvolved,
     day_closed_correctly: dayClosedCorrectly,
+    // Tick Summary - Resultado por tick (correlation_id)
+    tick_summary: buildTickSummary(events),
   };
 }
 
