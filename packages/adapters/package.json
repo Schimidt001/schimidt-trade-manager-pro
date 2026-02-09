@@ -1,7 +1,7 @@
 {
   "name": "@schimidt-brain/adapters",
   "version": "1.0.0",
-  "description": "Adapters externos — News Provider (Trading Economics + Finnhub), normalização, health e event windows",
+  "description": "Adapters externos — News Provider, Market Data (cTrader Open API), Executor",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [
@@ -16,6 +16,8 @@
     "schimidt-brain",
     "adapters",
     "news",
+    "market-data",
+    "ctrader",
     "trading-economics",
     "finnhub",
     "economic-calendar"
@@ -23,10 +25,12 @@
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
-    "@schimidt-brain/contracts": "file:../contracts"
+    "@schimidt-brain/contracts": "file:../contracts",
+    "ws": "^8.18.0"
   },
   "devDependencies": {
     "@types/node": "^25.2.1",
+    "@types/ws": "^8.5.13",
     "typescript": "^5.6.3"
   }
 }

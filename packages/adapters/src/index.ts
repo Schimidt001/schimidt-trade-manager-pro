@@ -88,7 +88,7 @@ export type {
 } from "./executor/mapping";
 
 // ═════════════════════════════════════════════════════════════
-// Market Data Provider (FOREX Real)
+// Market Data Provider (FOREX Real — cTrader Open API)
 // ═════════════════════════════════════════════════════════════
 
 // ─── Market Data Types ──────────────────────────────────────
@@ -97,6 +97,8 @@ export type {
   MarketTimeframe,
   FetchResult,
   MarketDataSnapshot,
+  DataQualityStatus,
+  DataQualityResult,
   ComputedMetrics,
   SessionName,
   RealMclInput,
@@ -105,13 +107,16 @@ export type {
 export {
   TYPICAL_SPREADS_BPS,
   DEFAULT_SPREAD_BPS,
-  SYMBOL_TO_YAHOO,
+  SYMBOL_TO_CTRADER,
+  TIMEFRAME_TO_CTRADER_PERIOD,
 } from "./market/index";
 
-// ─── Market Data Fetch ──────────────────────────────────────
+// ─── Market Data Fetch (cTrader) ───────────────────────────
 export {
   fetchMarketData,
   fetchMultipleMarketData,
+  closeCTraderConnection,
+  evaluateDataQuality,
 } from "./market/index";
 
 // ─── Market Metrics Computation ─────────────────────────────
