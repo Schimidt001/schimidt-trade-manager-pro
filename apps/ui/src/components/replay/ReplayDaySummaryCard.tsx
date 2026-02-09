@@ -124,6 +124,8 @@ export function ReplayDaySummaryCard({ summary }: ReplayDaySummaryCardProps) {
         <StatCell label="Brain Skips" value={summary.stats.brain_skips} highlight={summary.stats.brain_skips > 0 ? "warning" : undefined} />
         <StatCell label="PM Aprovações" value={summary.stats.pm_approvals} highlight={summary.stats.pm_approvals > 0 ? "success" : undefined} />
         <StatCell label="PM Negações" value={summary.stats.pm_denials} highlight={summary.stats.pm_denials > 0 ? "danger" : undefined} />
+        <StatCell label="Fills Simulados" value={(summary.stats as any).exec_fills ?? 0} highlight={(summary.stats as any).exec_fills > 0 ? "success" : undefined} />
+        <StatCell label="Posições Abertas" value={(summary.stats as any).exec_positions_opened ?? 0} highlight={(summary.stats as any).exec_positions_opened > 0 ? "success" : undefined} />
         <StatCell label="Erros" value={summary.stats.errors} highlight={summary.stats.errors > 0 ? "danger" : undefined} />
         <StatCell label="Audit Logs" value={summary.stats.audit_logs} />
       </div>

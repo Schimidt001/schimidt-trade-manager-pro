@@ -5,6 +5,9 @@
 // Mantém estado interno (estratégia, símbolos, armed/disarmed).
 // Permite testar Gate 0 e Gate 1 sem dinheiro real.
 //
+// CORREÇÃO CRÍTICA: Agora emite ciclo completo de eventos EXEC_*
+// para cada comando de trade, fechando o ciclo de paper trading.
+//
 // Modos:
 //   "normal"   — responde OK, latência baixa
 //   "degraded" — responde OK mas com latência alta e error_rate elevada
@@ -30,6 +33,21 @@ interface SimulatorState {
   active_symbols: string[];
   risk_profile: ExecutorRiskProfile;
   params: Record<string, unknown>;
+  // Estado de posições simuladas
+  open_positions: Map<string, SimulatedPosition>;
+  daily_pnl: number;
+  trade_count: number;
+}
+
+interface SimulatedPosition {
+  symbol: string;
+  direction: string;
+  entry_price: number;
+  quantity: number;
+  stop_loss: number;
+  take_profit: number;
+  opened_at: string;
+  pnl: number;
 }
 
 // ─── Simulador ─────────────────────────────────────────────────
@@ -37,15 +55,19 @@ interface SimulatorState {
 /**
  * Simulador do executor que implementa IExecutorAdapter.
  * Mantém estado em memória e responde de acordo com o modo configurado.
+ * 
+ * CORREÇÃO: Agora emite eventos de lifecycle completo para cada trade.
  */
 export class ExecutorSimulator implements IExecutorAdapter {
   private _simulatorMode: SimulatorMode;
   private _state: SimulatorState;
   private _eventLog: ExecutorEvent[];
+  private _lifecycleCallbacks: Array<(events: ExecutorEvent[]) => Promise<void>>;
 
   constructor(simulatorMode: SimulatorMode = "normal") {
     this._simulatorMode = simulatorMode;
     this._eventLog = [];
+    this._lifecycleCallbacks = [];
     this._state = {
       armed: false,
       mode: "SIMULATOR",
@@ -57,6 +79,9 @@ export class ExecutorSimulator implements IExecutorAdapter {
         max_positions: 8,
       },
       params: {},
+      open_positions: new Map(),
+      daily_pnl: 0,
+      trade_count: 0,
     };
   }
 
@@ -88,6 +113,14 @@ export class ExecutorSimulator implements IExecutorAdapter {
    */
   clearEventLog(): void {
     this._eventLog = [];
+  }
+
+  /**
+   * Registra callback para receber eventos de lifecycle.
+   * Usado pelo executorService para persistir eventos no ledger.
+   */
+  onLifecycleEvents(callback: (events: ExecutorEvent[]) => Promise<void>): void {
+    this._lifecycleCallbacks.push(callback);
   }
 
   // ─── IExecutorAdapter ──────────────────────────────────────────
@@ -133,6 +166,8 @@ export class ExecutorSimulator implements IExecutorAdapter {
    *   - normal:   aceita e altera estado
    *   - degraded: aceita com warning
    *   - down:     rejeita tudo
+   * 
+   * CORREÇÃO: Agora emite eventos de lifecycle completo para trades.
    */
   async sendCommand(cmd: ExecutorCommand): Promise<ExecutorCommandResult> {
     // Simular latência
@@ -152,6 +187,9 @@ export class ExecutorSimulator implements IExecutorAdapter {
     // Emitir evento fake para log
     if (result.ok) {
       this._emitFakeEvent(cmd);
+      
+      // CORREÇÃO CRÍTICA: Emitir eventos de lifecycle para trades
+      await this._emitTradeLifecycleEvents(cmd);
     }
 
     // Em modo degradado, adicionar warning
@@ -225,6 +263,8 @@ export class ExecutorSimulator implements IExecutorAdapter {
       case "CLOSE_DAY":
         this._state.armed = false;
         this._state.active_strategy = "NONE";
+        // CORREÇÃO: Emitir resumo do dia
+        this._emitDaySummaryEvent();
         return {
           ok: true,
           message: "Dia encerrado — executor desarmado e estratégia resetada (simulado)",
@@ -272,6 +312,170 @@ export class ExecutorSimulator implements IExecutorAdapter {
       timestamp: new Date().toISOString(),
     };
     this._eventLog.push(event);
+  }
+
+  // ─── CORREÇÃO CRÍTICA: Lifecycle de Trade ──────────────────────
+
+  /**
+   * Emite eventos de lifecycle completo para comandos de trade.
+   * Sequência: COMMAND → FILL → POSITION_OPENED → PNL_UPDATE
+   * 
+   * Isso fecha o ciclo de paper trading e permite que o Replay
+   * identifique corretamente quando houve execução simulada.
+   */
+  private async _emitTradeLifecycleEvents(cmd: ExecutorCommand): Promise<void> {
+    // Apenas emitir lifecycle para comandos SET_PARAMS que contêm dados de trade
+    if (cmd.type !== "SET_PARAMS") {
+      return;
+    }
+
+    const payload = cmd.payload as Record<string, unknown>;
+    const params = payload.params as Record<string, unknown> | undefined;
+    
+    if (!params) {
+      return;
+    }
+
+    // Se o comando tem symbol, direction, entry, stop_loss, take_profit
+    // então é um comando de trade
+    const isTradeCommand = 
+      params.symbol && 
+      params.direction && 
+      params.entry !== undefined;
+
+    if (!isTradeCommand) {
+      return; // Não é um trade, não emitir lifecycle
+    }
+
+    const symbol = String(params.symbol);
+    const direction = String(params.direction);
+    const entry = Number(params.entry);
+    const stopLoss = Number(params.stop_loss ?? entry * 0.99);
+    const takeProfit = Number(params.take_profit ?? entry * 1.02);
+    const quantity = Number(params.quantity ?? 1.0);
+
+    const now = new Date().toISOString();
+    const events: ExecutorEvent[] = [];
+
+    // 1. EXEC_SIMULATED_COMMAND (já emitido via _emitFakeEvent)
+
+    // 2. EXEC_SIMULATED_FILL
+    events.push({
+      type: "INFO",
+      symbol,
+      strategy: this._state.active_strategy,
+      details: {
+        event_type: "EXEC_SIMULATED_FILL",
+        reason_code: "EXEC_SIMULATED_FILL",
+        symbol,
+        direction,
+        fill_price: entry,
+        quantity,
+        fill_time: now,
+        simulator_mode: this._simulatorMode,
+      },
+      timestamp: now,
+    });
+
+    // 3. EXEC_POSITION_OPENED
+    const position: SimulatedPosition = {
+      symbol,
+      direction,
+      entry_price: entry,
+      quantity,
+      stop_loss: stopLoss,
+      take_profit: takeProfit,
+      opened_at: now,
+      pnl: 0,
+    };
+
+    this._state.open_positions.set(symbol, position);
+    this._state.trade_count++;
+
+    events.push({
+      type: "INFO",
+      symbol,
+      strategy: this._state.active_strategy,
+      details: {
+        event_type: "EXEC_POSITION_OPENED",
+        reason_code: "EXEC_POSITION_OPENED",
+        symbol,
+        direction,
+        entry_price: entry,
+        quantity,
+        stop_loss: stopLoss,
+        take_profit: takeProfit,
+        opened_at: now,
+        position_id: `SIM_${symbol}_${Date.now()}`,
+        simulator_mode: this._simulatorMode,
+      },
+      timestamp: now,
+    });
+
+    // 4. EXEC_PNL_UPDATE (inicial, PnL = 0)
+    events.push({
+      type: "INFO",
+      symbol,
+      strategy: this._state.active_strategy,
+      details: {
+        event_type: "EXEC_PNL_UPDATE",
+        reason_code: "EXEC_PNL_UPDATE",
+        symbol,
+        position_pnl: 0,
+        daily_pnl: this._state.daily_pnl,
+        trade_count: this._state.trade_count,
+        open_positions: this._state.open_positions.size,
+        simulator_mode: this._simulatorMode,
+      },
+      timestamp: now,
+    });
+
+    // Adicionar eventos ao log
+    this._eventLog.push(...events);
+
+    // Notificar callbacks (para persistir no ledger)
+    await this._notifyLifecycleCallbacks(events);
+  }
+
+  /**
+   * Emite evento de resumo do dia (EXEC_DAY_SUMMARY).
+   */
+  private _emitDaySummaryEvent(): void {
+    const now = new Date().toISOString();
+    const event: ExecutorEvent = {
+      type: "INFO",
+      symbol: "ALL",
+      strategy: this._state.active_strategy,
+      details: {
+        event_type: "EXEC_DAY_SUMMARY",
+        reason_code: "EXEC_DAY_SUMMARY",
+        daily_pnl: this._state.daily_pnl,
+        trade_count: this._state.trade_count,
+        open_positions: this._state.open_positions.size,
+        simulator_mode: this._simulatorMode,
+      },
+      timestamp: now,
+    };
+
+    this._eventLog.push(event);
+
+    // Reset diário
+    this._state.daily_pnl = 0;
+    this._state.trade_count = 0;
+    this._state.open_positions.clear();
+  }
+
+  /**
+   * Notifica callbacks registrados sobre eventos de lifecycle.
+   */
+  private async _notifyLifecycleCallbacks(events: ExecutorEvent[]): Promise<void> {
+    for (const callback of this._lifecycleCallbacks) {
+      try {
+        await callback(events);
+      } catch (err) {
+        console.error("Erro ao notificar lifecycle callback:", err);
+      }
+    }
   }
 
   // ─── Simulação de Latência ─────────────────────────────────────

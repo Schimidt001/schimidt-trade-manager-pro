@@ -38,6 +38,9 @@ let _adapter: IExecutorAdapter | null = null;
 /**
  * Retorna o adapter configurado (real ou simulador).
  * Singleton — criado na primeira chamada.
+ * 
+ * CORREÇÃO: Registra callback para receber eventos de lifecycle
+ * do simulator e persistí-los no ledger.
  */
 export function getAdapter(): IExecutorAdapter {
   if (!_adapter) {
@@ -45,7 +48,16 @@ export function getAdapter(): IExecutorAdapter {
     if (mode === "REAL") {
       _adapter = new ExecutorAdapter();
     } else {
-      _adapter = new ExecutorSimulator("normal");
+      const simulator = new ExecutorSimulator("normal");
+      
+      // CORREÇÃO CRÍTICA: Registrar callback para persistir lifecycle events
+      simulator.onLifecycleEvents(async (events) => {
+        for (const event of events) {
+          await handleExecutorEvent(event);
+        }
+      });
+      
+      _adapter = simulator;
     }
   }
   return _adapter;

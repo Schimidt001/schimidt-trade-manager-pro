@@ -155,16 +155,20 @@ export function mapDecisionToExecutorCommands(
   }
 
   // SET_PARAMS (parâmetros do trade plan)
+  // CORREÇÃO: Incluir dados necessários para o simulator emitir lifecycle events
   commands.push({
     type: "SET_PARAMS",
     payload: {
       params: {
         symbol: intent.symbol,
+        direction: intent.intent_type.includes("LONG") ? "LONG" : intent.intent_type.includes("SHORT") ? "SHORT" : "NEUTRAL",
         intent_type: intent.intent_type,
+        entry: intent.trade_plan.entry_price,
         entry_price: intent.trade_plan.entry_price,
         stop_loss: intent.trade_plan.stop_loss,
         take_profit: intent.trade_plan.take_profit,
         timeframe: intent.trade_plan.timeframe,
+        quantity: 1.0, // Mock - será substituído por position sizing real
       },
     },
   });

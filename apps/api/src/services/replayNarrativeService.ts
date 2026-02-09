@@ -343,6 +343,43 @@ function generateEventNarrative(
       const ok = payload.result_ok ? "OK" : "FALHA";
       return `Executor: ${cmdType} — ${ok}`;
     }
+    case "EXECUTOR_EVENT": {
+      // Eventos do executor (incluindo lifecycle de trades)
+      const execPayload = payload as Record<string, unknown>;
+      const execEventType = execPayload.executor_event_type ?? "UNKNOWN";
+      const details = (execPayload.details as Record<string, unknown>) ?? {};
+      const eventType = details.event_type as string | undefined;
+      
+      if (eventType === "EXEC_SIMULATED_FILL") {
+        const sym = details.symbol ?? symbol ?? "—";
+        const direction = details.direction ?? "—";
+        const fillPrice = details.fill_price ?? "—";
+        const quantity = details.quantity ?? "—";
+        return `EXECUTOR: Fill simulado — ${sym} ${direction} @ ${fillPrice} (qty: ${quantity})`;
+      } else if (eventType === "EXEC_POSITION_OPENED") {
+        const sym = details.symbol ?? symbol ?? "—";
+        const direction = details.direction ?? "—";
+        const entry = details.entry_price ?? "—";
+        const sl = details.stop_loss ?? "—";
+        const tp = details.take_profit ?? "—";
+        return `EXECUTOR: Posição aberta — ${sym} ${direction} entry=${entry} SL=${sl} TP=${tp}`;
+      } else if (eventType === "EXEC_POSITION_CLOSED") {
+        const sym = details.symbol ?? symbol ?? "—";
+        const pnl = details.pnl ?? "—";
+        return `EXECUTOR: Posição fechada — ${sym} PnL=${pnl}`;
+      } else if (eventType === "EXEC_PNL_UPDATE") {
+        const dailyPnl = details.daily_pnl ?? "—";
+        const tradeCount = details.trade_count ?? "—";
+        const openPos = details.open_positions ?? "—";
+        return `EXECUTOR: PnL atualizado — Diário: ${dailyPnl} | Trades: ${tradeCount} | Posições abertas: ${openPos}`;
+      } else if (eventType === "EXEC_DAY_SUMMARY") {
+        const dailyPnl = details.daily_pnl ?? "—";
+        const tradeCount = details.trade_count ?? "—";
+        return `EXECUTOR: Resumo do dia — PnL: ${dailyPnl} | Trades: ${tradeCount}`;
+      } else {
+        return `EXECUTOR: ${execEventType} — ${details.command_type ?? "evento"}`;
+      }
+    }
     case "AUDIT_LOG": {
       const action = payload.action ?? "—";
       const resource = payload.resource ?? "—";
@@ -505,7 +542,7 @@ export function buildBrainExplanations(events: LedgerEventRow[]): BrainSkipExpla
 export function buildWhyNoTrade(events: LedgerEventRow[]): WhyNoTradeExplanation {
   const brainExplanations = buildBrainExplanations(events);
 
-  // Verificar se houve trade (PM_DECISION com ALLOWED/APPROVED)
+  // CORREÇÃO CRÍTICA: Verificar se houve trade (PM_DECISION com ALLOWED/APPROVED + execução simulada)
   const pmDecisions = events.filter((e) => e.event_type === "PM_DECISION");
   const approvals = pmDecisions.filter((e) => {
     const payload = (typeof e.payload === "string" ? JSON.parse(e.payload) : e.payload) as Record<string, unknown>;
@@ -518,7 +555,20 @@ export function buildWhyNoTrade(events: LedgerEventRow[]): WhyNoTradeExplanation
     return dt.includes("DENIED") || dt.includes("REJECTED");
   });
 
-  const hadTrade = approvals.length > 0;
+  // Verificar se houve execução simulada
+  const execFills = events.filter((e) => 
+    e.event_type === "EXECUTOR_EVENT" && 
+    (e.payload as Record<string, unknown>).executor_event_type === "INFO" &&
+    ((e.payload as Record<string, unknown>).details as Record<string, unknown>)?.event_type === "EXEC_SIMULATED_FILL"
+  );
+  const execPositionOpened = events.filter((e) => 
+    e.event_type === "EXECUTOR_EVENT" && 
+    (e.payload as Record<string, unknown>).executor_event_type === "INFO" &&
+    ((e.payload as Record<string, unknown>).details as Record<string, unknown>)?.event_type === "EXEC_POSITION_OPENED"
+  );
+  const hadSimulatedExecution = execFills.length > 0 || execPositionOpened.length > 0;
+
+  const hadTrade = approvals.length > 0 && hadSimulatedExecution;
 
   // PM final decision
   let pmFinalDecision: string | null = null;
@@ -594,7 +644,9 @@ export function buildWhyNoTrade(events: LedgerEventRow[]): WhyNoTradeExplanation
   // Gerar resumo narrativo
   let summary: string;
   if (hadTrade) {
-    summary = `O sistema executou ${approvals.length} operação(ões) neste dia. ${denials.length > 0 ? `${denials.length} intent(s) foram negados pelo PM.` : ""}`;
+    summary = `O sistema executou ${approvals.length} operação(ões) simulada(s) neste dia (paper trading). ${denials.length > 0 ? `${denials.length} intent(s) foram negados pelo PM.` : ""}`;
+  } else if (approvals.length > 0 && !hadSimulatedExecution) {
+    summary = `PM aprovou ${approvals.length} operação(ões), mas não houve execução (modo shadow ou executor indisponível).`;
   } else if (brainSkips.length > 0 && pmDecisions.length === 0) {
     const skipBrains = brainExplanations.filter((b) => !b.acted).map((b) => b.brain_id);
     summary = `Nenhum cérebro encontrou edge suficiente para operar. ${skipBrains.join(", ")} não geraram intents. ${blockingReasons.length > 0 ? `Motivos: ${blockingReasons.map((r) => r.description).join("; ")}.` : ""}`;
@@ -661,6 +713,19 @@ export function buildDaySummary(
   });
   const symbolsInvolved = Array.from(symbolSet);
 
+  // CORREÇÃO CRÍTICA: Verificar eventos EXEC_* para determinar se houve execução simulada
+  const execFills = events.filter((e) => 
+    e.event_type === "EXECUTOR_EVENT" && 
+    (e.payload as Record<string, unknown>).executor_event_type === "INFO" &&
+    ((e.payload as Record<string, unknown>).details as Record<string, unknown>)?.event_type === "EXEC_SIMULATED_FILL"
+  );
+  const execPositionOpened = events.filter((e) => 
+    e.event_type === "EXECUTOR_EVENT" && 
+    (e.payload as Record<string, unknown>).executor_event_type === "INFO" &&
+    ((e.payload as Record<string, unknown>).details as Record<string, unknown>)?.event_type === "EXEC_POSITION_OPENED"
+  );
+  const hadSimulatedExecution = execFills.length > 0 || execPositionOpened.length > 0;
+
   // Determinar outcome
   let outcome: DayNarrativeSummary["outcome"];
   let outcomeExplanation: string;
@@ -671,9 +736,14 @@ export function buildDaySummary(
   } else if (errors.length > 0 && mclSnapshots.length === 0) {
     outcome = "ERROR";
     outcomeExplanation = `Dia com ${errors.length} erro(s) e sem MCL snapshots. Pipeline pode não ter executado corretamente.`;
-  } else if (pmApprovals.length > 0) {
+  } else if (pmApprovals.length > 0 && hadSimulatedExecution) {
+    // CORREÇÃO: PM aprovou E houve execução simulada
     outcome = "TRADE_EXECUTED";
-    outcomeExplanation = `${pmApprovals.length} operação(ões) aprovada(s) pelo PM. ${pmDenials.length > 0 ? `${pmDenials.length} negada(s).` : ""}`;
+    outcomeExplanation = `${pmApprovals.length} operação(ões) aprovada(s) e executada(s) em modo simulado. ${pmDenials.length > 0 ? `${pmDenials.length} negada(s).` : ""}`;
+  } else if (pmApprovals.length > 0 && !hadSimulatedExecution) {
+    // PM aprovou mas não houve fill (possível G0 ou executor down)
+    outcome = "NO_TRADE";
+    outcomeExplanation = `${pmApprovals.length} operação(ões) aprovada(s) pelo PM, mas sem execução (modo shadow ou executor indisponível).`;
   } else if (brainIntents.length > 0 && pmDenials.length > 0) {
     outcome = "NO_TRADE";
     outcomeExplanation = `Cérebros geraram ${brainIntents.length} intent(s), mas PM negou todas as operações.`;
@@ -764,6 +834,9 @@ export function buildDaySummary(
       audit_logs: auditLogs.length,
       errors: errors.length,
       warnings: warnings.length,
+      // CORREÇÃO: Adicionar stats de execução simulada
+      exec_fills: execFills.length,
+      exec_positions_opened: execPositionOpened.length,
     },
     active_brains: activeBrains,
     inactive_brains: inactiveBrains,

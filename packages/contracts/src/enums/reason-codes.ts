@@ -99,6 +99,12 @@ export enum ReasonCode {
   // ── Executor Simulation ──────────────────────────────────
   EXEC_SIMULATED_COMMAND = "EXEC_SIMULATED_COMMAND",
   EXEC_SIMULATED_NOOP = "EXEC_SIMULATED_NOOP",
+  EXEC_SIMULATED_FILL = "EXEC_SIMULATED_FILL",
+  EXEC_POSITION_OPENED = "EXEC_POSITION_OPENED",
+  EXEC_POSITION_UPDATED = "EXEC_POSITION_UPDATED",
+  EXEC_POSITION_CLOSED = "EXEC_POSITION_CLOSED",
+  EXEC_PNL_UPDATE = "EXEC_PNL_UPDATE",
+  EXEC_DAY_SUMMARY = "EXEC_DAY_SUMMARY",
 }
 
 /**
@@ -200,6 +206,12 @@ export const REASON_CODE_CATALOG: Readonly<Record<ReasonCode, string>> = {
   // Executor Simulation
   [ReasonCode.EXEC_SIMULATED_COMMAND]: "Comando simulado pelo executor (paper trading)",
   [ReasonCode.EXEC_SIMULATED_NOOP]: "Nenhuma ação de execução necessária (NOOP simulado)",
+  [ReasonCode.EXEC_SIMULATED_FILL]: "Fill simulado executado (paper trading)",
+  [ReasonCode.EXEC_POSITION_OPENED]: "Posição aberta no executor simulado",
+  [ReasonCode.EXEC_POSITION_UPDATED]: "Posição atualizada no executor simulado",
+  [ReasonCode.EXEC_POSITION_CLOSED]: "Posição fechada no executor simulado",
+  [ReasonCode.EXEC_PNL_UPDATE]: "Atualização de PnL simulado",
+  [ReasonCode.EXEC_DAY_SUMMARY]: "Resumo do dia de paper trading",
 } as const;
 
 // ─── Type inferido ───────────────────────────────────────────
