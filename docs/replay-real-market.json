@@ -1,0 +1,546 @@
+{
+  "generated_at": "2026-02-09T17:31:58.417Z",
+  "correlation_id": "3d13d29e-0aef-4d75-b368-34b735a333cb",
+  "data_source": "CTRADER",
+  "mock_mode": false,
+  "symbols_processed": 7,
+  "symbols_with_data": 7,
+  "symbols_failed": [],
+  "total_snapshots": 7,
+  "total_intents": 8,
+  "total_skips": 20,
+  "total_decisions": 8,
+  "entries": [
+    {
+      "symbol": "EURUSD",
+      "timestamp": "2026-02-09T17:31:30.330Z",
+      "data_source": "CTRADER",
+      "market_data": {
+        "D1_candles": 40,
+        "H4_candles": 124,
+        "H1_candles": 120,
+        "M15_candles": 288,
+        "last_H1_close": 1.18974,
+        "last_M15_close": 1.19004
+      },
+      "mcl_snapshot": {
+        "structure": "TRANSITION",
+        "volatility": "LOW",
+        "liquidity_phase": "CLEAN",
+        "session": "NY",
+        "event_proximity": "NONE",
+        "execution_state": "OK",
+        "atr": 0.001557142857142892,
+        "spread_bps": 3,
+        "volume_ratio": 1.545010467550655,
+        "correlation_index": 0.15,
+        "why": {
+          "reason_code": "MCL_VOLATILITY_DROP",
+          "message": "Estrutura: TRANSITION | Volatilidade: LOW | Liquidez: CLEAN | Sessão: NY"
+        }
+      },
+      "brains": [
+        {
+          "brain_id": "A2",
+          "result": "SKIP",
+          "skip_reason": "A2 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "B3",
+          "result": "INTENT",
+          "intent_type": "HEDGE",
+          "proposed_risk_pct": 0.75,
+          "trade_plan": {
+            "entry_price": 1.18974,
+            "stop_loss": 1.1866257142857142,
+            "take_profit": 1.1944114285714287,
+            "timeframe": "H1"
+          },
+          "why": {
+            "reason_code": "MCL_CORRELATION_SHIFT",
+            "message": "B3 detectou divergência de correlação (0.15) em EURUSD — oportunidade de mean-reversion"
+          }
+        },
+        {
+          "brain_id": "C3",
+          "result": "SKIP",
+          "skip_reason": "C3 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "D2",
+          "result": "SKIP",
+          "skip_reason": "D2 não encontrou edge no contexto atual"
+        }
+      ],
+      "pm_decisions": [
+        {
+          "brain_id": "B3",
+          "decision": "ALLOW",
+          "risk_adjustments": null,
+          "why": {
+            "reason_code": "PM_POSITION_ALLOWED",
+            "message": "Intent aprovado: risco 0.8% dentro dos limites para EURUSD"
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "GBPUSD",
+      "timestamp": "2026-02-09T17:31:30.330Z",
+      "data_source": "CTRADER",
+      "market_data": {
+        "D1_candles": 40,
+        "H4_candles": 124,
+        "H1_candles": 120,
+        "M15_candles": 288,
+        "last_H1_close": 1.36658,
+        "last_M15_close": 1.36678
+      },
+      "mcl_snapshot": {
+        "structure": "TRANSITION",
+        "volatility": "LOW",
+        "liquidity_phase": "CLEAN",
+        "session": "NY",
+        "event_proximity": "NONE",
+        "execution_state": "OK",
+        "atr": 0.002484285714285685,
+        "spread_bps": 5,
+        "volume_ratio": 0.9680330951485847,
+        "correlation_index": 0.15,
+        "why": {
+          "reason_code": "MCL_VOLATILITY_DROP",
+          "message": "Estrutura: TRANSITION | Volatilidade: LOW | Liquidez: CLEAN | Sessão: NY"
+        }
+      },
+      "brains": [
+        {
+          "brain_id": "A2",
+          "result": "SKIP",
+          "skip_reason": "A2 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "B3",
+          "result": "INTENT",
+          "intent_type": "HEDGE",
+          "proposed_risk_pct": 0.75,
+          "trade_plan": {
+            "entry_price": 1.36658,
+            "stop_loss": 1.3616114285714285,
+            "take_profit": 1.374032857142857,
+            "timeframe": "H1"
+          },
+          "why": {
+            "reason_code": "MCL_CORRELATION_SHIFT",
+            "message": "B3 detectou divergência de correlação (0.15) em GBPUSD — oportunidade de mean-reversion"
+          }
+        },
+        {
+          "brain_id": "C3",
+          "result": "SKIP",
+          "skip_reason": "C3 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "D2",
+          "result": "SKIP",
+          "skip_reason": "D2 não encontrou edge no contexto atual"
+        }
+      ],
+      "pm_decisions": [
+        {
+          "brain_id": "B3",
+          "decision": "ALLOW",
+          "risk_adjustments": null,
+          "why": {
+            "reason_code": "PM_POSITION_ALLOWED",
+            "message": "Intent aprovado: risco 0.8% dentro dos limites para GBPUSD"
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "USDJPY",
+      "timestamp": "2026-02-09T17:31:30.330Z",
+      "data_source": "CTRADER",
+      "market_data": {
+        "D1_candles": 40,
+        "H4_candles": 124,
+        "H1_candles": 120,
+        "M15_candles": 288,
+        "last_H1_close": 156.09,
+        "last_M15_close": 156.069
+      },
+      "mcl_snapshot": {
+        "structure": "RANGE",
+        "volatility": "LOW",
+        "liquidity_phase": "CLEAN",
+        "session": "NY",
+        "event_proximity": "NONE",
+        "execution_state": "OK",
+        "atr": 0.2872142857142868,
+        "spread_bps": 4,
+        "volume_ratio": 0.9890459363957679,
+        "correlation_index": 0.75,
+        "why": {
+          "reason_code": "MCL_VOLATILITY_DROP",
+          "message": "Estrutura: RANGE | Volatilidade: LOW | Liquidez: CLEAN | Sessão: NY"
+        }
+      },
+      "brains": [
+        {
+          "brain_id": "A2",
+          "result": "SKIP",
+          "skip_reason": "A2 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "B3",
+          "result": "INTENT",
+          "intent_type": "OPEN_SHORT",
+          "proposed_risk_pct": 0.75,
+          "trade_plan": {
+            "entry_price": 156.09,
+            "stop_loss": 156.66442857142857,
+            "take_profit": 155.22835714285713,
+            "timeframe": "H1"
+          },
+          "why": {
+            "reason_code": "MCL_CORRELATION_SHIFT",
+            "message": "B3 detectou correlação forte (0.75) com spread anômalo em USDJPY — OPEN_SHORT"
+          }
+        },
+        {
+          "brain_id": "C3",
+          "result": "SKIP",
+          "skip_reason": "C3 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "D2",
+          "result": "SKIP",
+          "skip_reason": "D2 não encontrou edge no contexto atual"
+        }
+      ],
+      "pm_decisions": [
+        {
+          "brain_id": "B3",
+          "decision": "ALLOW",
+          "risk_adjustments": null,
+          "why": {
+            "reason_code": "PM_POSITION_ALLOWED",
+            "message": "Intent aprovado: risco 0.8% dentro dos limites para USDJPY"
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "AUDUSD",
+      "timestamp": "2026-02-09T17:31:30.330Z",
+      "data_source": "CTRADER",
+      "market_data": {
+        "D1_candles": 40,
+        "H4_candles": 124,
+        "H1_candles": 120,
+        "M15_candles": 288,
+        "last_H1_close": 0.70865,
+        "last_M15_close": 0.70846
+      },
+      "mcl_snapshot": {
+        "structure": "RANGE",
+        "volatility": "LOW",
+        "liquidity_phase": "CLEAN",
+        "session": "NY",
+        "event_proximity": "NONE",
+        "execution_state": "OK",
+        "atr": 0.0014135714285714504,
+        "spread_bps": 5,
+        "volume_ratio": 0.5651302605210676,
+        "correlation_index": 0.75,
+        "why": {
+          "reason_code": "MCL_VOLATILITY_DROP",
+          "message": "Estrutura: RANGE | Volatilidade: LOW | Liquidez: CLEAN | Sessão: NY"
+        }
+      },
+      "brains": [
+        {
+          "brain_id": "A2",
+          "result": "SKIP",
+          "skip_reason": "A2 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "B3",
+          "result": "INTENT",
+          "intent_type": "OPEN_SHORT",
+          "proposed_risk_pct": 0.75,
+          "trade_plan": {
+            "entry_price": 0.70865,
+            "stop_loss": 0.7114771428571429,
+            "take_profit": 0.7044092857142856,
+            "timeframe": "H1"
+          },
+          "why": {
+            "reason_code": "MCL_CORRELATION_SHIFT",
+            "message": "B3 detectou correlação forte (0.75) com spread anômalo em AUDUSD — OPEN_SHORT"
+          }
+        },
+        {
+          "brain_id": "C3",
+          "result": "SKIP",
+          "skip_reason": "C3 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "D2",
+          "result": "SKIP",
+          "skip_reason": "D2 não encontrou edge no contexto atual"
+        }
+      ],
+      "pm_decisions": [
+        {
+          "brain_id": "B3",
+          "decision": "ALLOW",
+          "risk_adjustments": null,
+          "why": {
+            "reason_code": "PM_POSITION_ALLOWED",
+            "message": "Intent aprovado: risco 0.8% dentro dos limites para AUDUSD"
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "USDCHF",
+      "timestamp": "2026-02-09T17:31:30.330Z",
+      "data_source": "CTRADER",
+      "market_data": {
+        "D1_candles": 40,
+        "H4_candles": 124,
+        "H1_candles": 120,
+        "M15_candles": 288,
+        "last_H1_close": 0.76796,
+        "last_M15_close": 0.76779
+      },
+      "mcl_snapshot": {
+        "structure": "TRANSITION",
+        "volatility": "LOW",
+        "liquidity_phase": "CLEAN",
+        "session": "NY",
+        "event_proximity": "NONE",
+        "execution_state": "OK",
+        "atr": 0.00129071428571428,
+        "spread_bps": 5,
+        "volume_ratio": 1.7877758913412611,
+        "correlation_index": 0.75,
+        "why": {
+          "reason_code": "MCL_VOLATILITY_DROP",
+          "message": "Estrutura: TRANSITION | Volatilidade: LOW | Liquidez: CLEAN | Sessão: NY"
+        }
+      },
+      "brains": [
+        {
+          "brain_id": "A2",
+          "result": "SKIP",
+          "skip_reason": "A2 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "B3",
+          "result": "INTENT",
+          "intent_type": "OPEN_LONG",
+          "proposed_risk_pct": 0.75,
+          "trade_plan": {
+            "entry_price": 0.76796,
+            "stop_loss": 0.7653785714285715,
+            "take_profit": 0.7718321428571429,
+            "timeframe": "H1"
+          },
+          "why": {
+            "reason_code": "MCL_CORRELATION_SHIFT",
+            "message": "B3 detectou correlação forte (0.75) com spread anômalo em USDCHF — OPEN_LONG"
+          }
+        },
+        {
+          "brain_id": "C3",
+          "result": "SKIP",
+          "skip_reason": "C3 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "D2",
+          "result": "SKIP",
+          "skip_reason": "D2 não encontrou edge no contexto atual"
+        }
+      ],
+      "pm_decisions": [
+        {
+          "brain_id": "B3",
+          "decision": "ALLOW",
+          "risk_adjustments": null,
+          "why": {
+            "reason_code": "PM_POSITION_ALLOWED",
+            "message": "Intent aprovado: risco 0.8% dentro dos limites para USDCHF"
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "USDCAD",
+      "timestamp": "2026-02-09T17:31:30.330Z",
+      "data_source": "CTRADER",
+      "market_data": {
+        "D1_candles": 40,
+        "H4_candles": 124,
+        "H1_candles": 120,
+        "M15_candles": 288,
+        "last_H1_close": 1.3571,
+        "last_M15_close": 1.35777
+      },
+      "mcl_snapshot": {
+        "structure": "TRANSITION",
+        "volatility": "LOW",
+        "liquidity_phase": "BUILDUP",
+        "session": "NY",
+        "event_proximity": "NONE",
+        "execution_state": "OK",
+        "atr": 0.0013992857142856982,
+        "spread_bps": 4,
+        "volume_ratio": 0.6484322881921266,
+        "correlation_index": 0.75,
+        "why": {
+          "reason_code": "MCL_VOLATILITY_DROP",
+          "message": "Estrutura: TRANSITION | Volatilidade: LOW | Liquidez: BUILDUP | Sessão: NY"
+        }
+      },
+      "brains": [
+        {
+          "brain_id": "A2",
+          "result": "INTENT",
+          "intent_type": "OPEN_LONG",
+          "proposed_risk_pct": 1,
+          "trade_plan": {
+            "entry_price": 0.06996428571428491,
+            "stop_loss": 0.06786535714285637,
+            "take_profit": 0.07416214285714201,
+            "timeframe": "M15"
+          },
+          "why": {
+            "reason_code": "MCL_LIQUIDITY_BUILDUP",
+            "message": "A2 detectou build-up de liquidez em USDCAD — entrada assimétrica OPEN_LONG"
+          }
+        },
+        {
+          "brain_id": "B3",
+          "result": "INTENT",
+          "intent_type": "OPEN_SHORT",
+          "proposed_risk_pct": 0.75,
+          "trade_plan": {
+            "entry_price": 1.3571,
+            "stop_loss": 1.3598985714285714,
+            "take_profit": 1.3529021428571428,
+            "timeframe": "H1"
+          },
+          "why": {
+            "reason_code": "MCL_CORRELATION_SHIFT",
+            "message": "B3 detectou correlação forte (0.75) com spread anômalo em USDCAD — OPEN_SHORT"
+          }
+        },
+        {
+          "brain_id": "C3",
+          "result": "SKIP",
+          "skip_reason": "C3 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "D2",
+          "result": "SKIP",
+          "skip_reason": "D2 não encontrou edge no contexto atual"
+        }
+      ],
+      "pm_decisions": [
+        {
+          "brain_id": "A2",
+          "decision": "ALLOW",
+          "risk_adjustments": null,
+          "why": {
+            "reason_code": "PM_POSITION_ALLOWED",
+            "message": "Intent aprovado: risco 1.0% dentro dos limites para USDCAD"
+          }
+        },
+        {
+          "brain_id": "B3",
+          "decision": "ALLOW",
+          "risk_adjustments": null,
+          "why": {
+            "reason_code": "PM_POSITION_ALLOWED",
+            "message": "Intent aprovado: risco 0.8% dentro dos limites para USDCAD"
+          }
+        }
+      ]
+    },
+    {
+      "symbol": "NZDUSD",
+      "timestamp": "2026-02-09T17:31:30.330Z",
+      "data_source": "CTRADER",
+      "market_data": {
+        "D1_candles": 40,
+        "H4_candles": 124,
+        "H1_candles": 120,
+        "M15_candles": 288,
+        "last_H1_close": 0.60468,
+        "last_M15_close": 0.60447
+      },
+      "mcl_snapshot": {
+        "structure": "RANGE",
+        "volatility": "LOW",
+        "liquidity_phase": "CLEAN",
+        "session": "NY",
+        "event_proximity": "NONE",
+        "execution_state": "OK",
+        "atr": 0.0011471428571428546,
+        "spread_bps": 6,
+        "volume_ratio": 0.6155129274395736,
+        "correlation_index": 0.15,
+        "why": {
+          "reason_code": "MCL_VOLATILITY_DROP",
+          "message": "Estrutura: RANGE | Volatilidade: LOW | Liquidez: CLEAN | Sessão: NY"
+        }
+      },
+      "brains": [
+        {
+          "brain_id": "A2",
+          "result": "SKIP",
+          "skip_reason": "A2 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "B3",
+          "result": "INTENT",
+          "intent_type": "HEDGE",
+          "proposed_risk_pct": 0.75,
+          "trade_plan": {
+            "entry_price": 0.60468,
+            "stop_loss": 0.6023857142857143,
+            "take_profit": 0.6081214285714286,
+            "timeframe": "H1"
+          },
+          "why": {
+            "reason_code": "MCL_CORRELATION_SHIFT",
+            "message": "B3 detectou divergência de correlação (0.15) em NZDUSD — oportunidade de mean-reversion"
+          }
+        },
+        {
+          "brain_id": "C3",
+          "result": "SKIP",
+          "skip_reason": "C3 não encontrou edge no contexto atual"
+        },
+        {
+          "brain_id": "D2",
+          "result": "SKIP",
+          "skip_reason": "D2 não encontrou edge no contexto atual"
+        }
+      ],
+      "pm_decisions": [
+        {
+          "brain_id": "B3",
+          "decision": "ALLOW",
+          "risk_adjustments": null,
+          "why": {
+            "reason_code": "PM_POSITION_ALLOWED",
+            "message": "Intent aprovado: risco 0.8% dentro dos limites para NZDUSD"
+          }
+        }
+      ]
+    }
+  ]
+}

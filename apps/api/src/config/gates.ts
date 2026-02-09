@@ -43,7 +43,7 @@ let _state: OperationalState = {
   execution_state: "OK",
   provider_states: {},
   executor_connectivity: "unknown",
-  mock_mode: true,
+  mock_mode: false,
   risk_off: false,
   last_tick_result: null,
 };

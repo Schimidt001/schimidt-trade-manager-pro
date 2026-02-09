@@ -45,6 +45,7 @@ export const MarketMetricsSchema = z.object({
   spread_bps: z.number().nonnegative().describe("Spread em basis points"),
   volume_ratio: z.number().nonnegative().describe("Ratio de volume vs média"),
   correlation_index: z.number().min(-1).max(1).describe("Índice de correlação entre ativos"),
+  last_close: z.number().positive().describe("Preço de fechamento do último candle H1"),
 });
 
 /**

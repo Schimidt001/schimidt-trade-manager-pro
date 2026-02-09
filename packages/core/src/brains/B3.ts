@@ -125,9 +125,7 @@ export function generateIntent(input: BrainInput): BrainIntent | null {
 
   const stopDistance = atr * SL_ATR_MULTIPLIER;
   const profitDistance = atr * TP_ATR_MULTIPLIER;
-  const refPrice = atr * 50;
-
-  const entryPrice = refPrice;
+  const entryPrice = mcl.metrics.last_close;
   const isLong = intentType === "OPEN_LONG" || intentType === "HEDGE";
   const stopLoss = isLong
     ? entryPrice - stopDistance
