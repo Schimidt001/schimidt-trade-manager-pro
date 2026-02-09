@@ -546,30 +546,24 @@ export function buildBrainExplanations(events: LedgerEventRow[]): BrainSkipExpla
 export function buildWhyNoTrade(events: LedgerEventRow[]): WhyNoTradeExplanation {
   const brainExplanations = buildBrainExplanations(events);
 
-  // CORREÇÃO CRÍTICA: Verificar se houve trade (PM_DECISION com ALLOWED/APPROVED + execução simulada)
+  // CORREÇÃO CRÍTICA: Verificar se houve trade (PM_DECISION com ALLOW + execução simulada)
   const pmDecisions = events.filter((e) => e.event_type === "PM_DECISION");
   const approvals = pmDecisions.filter((e) => {
     const payload = (typeof e.payload === "string" ? JSON.parse(e.payload) : e.payload) as Record<string, unknown>;
+    const decision = String(payload.decision ?? "");
     const dt = String(payload.decision_type ?? "");
-    return dt.includes("ALLOWED") || dt.includes("APPROVED");
+    return decision === "ALLOW" || dt.includes("ALLOWED") || dt.includes("APPROVED");
   });
   const denials = pmDecisions.filter((e) => {
     const payload = (typeof e.payload === "string" ? JSON.parse(e.payload) : e.payload) as Record<string, unknown>;
+    const decision = String(payload.decision ?? "");
     const dt = String(payload.decision_type ?? "");
-    return dt.includes("DENIED") || dt.includes("REJECTED");
+    return decision === "DENY" || dt.includes("DENIED") || dt.includes("REJECTED");
   });
 
-  // Verificar se houve execução simulada
-  const execFills = events.filter((e) => 
-    e.event_type === "EXECUTOR_EVENT" && 
-    (e.payload as Record<string, unknown>).executor_event_type === "INFO" &&
-    ((e.payload as Record<string, unknown>).details as Record<string, unknown>)?.event_type === "EXEC_SIMULATED_FILL"
-  );
-  const execPositionOpened = events.filter((e) => 
-    e.event_type === "EXECUTOR_EVENT" && 
-    (e.payload as Record<string, unknown>).executor_event_type === "INFO" &&
-    ((e.payload as Record<string, unknown>).details as Record<string, unknown>)?.event_type === "EXEC_POSITION_OPENED"
-  );
+  // Verificar se houve execução simulada (eventos normalizados)
+  const execFills = events.filter((e) => e.event_type === "EXEC_SIMULATED_FILL");
+  const execPositionOpened = events.filter((e) => e.event_type === "EXEC_POSITION_OPENED");
   const hadSimulatedExecution = execFills.length > 0 || execPositionOpened.length > 0;
 
   const hadTrade = approvals.length > 0 && hadSimulatedExecution;
@@ -688,16 +682,19 @@ export function buildDaySummary(
   const errors = events.filter((e) => e.severity === "ERROR");
   const warnings = events.filter((e) => e.severity === "WARN");
 
-  // PM approvals/denials
+  // CORREÇÃO 3: PM approvals/denials - verificar decision === "ALLOW"
   const pmApprovals = pmDecisions.filter((e) => {
     const payload = (typeof e.payload === "string" ? JSON.parse(e.payload) : e.payload) as Record<string, unknown>;
+    const decision = String(payload.decision ?? "");
     const dt = String(payload.decision_type ?? "");
-    return dt.includes("ALLOWED") || dt.includes("APPROVED");
+    // Verificar tanto decision quanto decision_type para compatibilidade
+    return decision === "ALLOW" || dt.includes("ALLOWED") || dt.includes("APPROVED");
   });
   const pmDenials = pmDecisions.filter((e) => {
     const payload = (typeof e.payload === "string" ? JSON.parse(e.payload) : e.payload) as Record<string, unknown>;
+    const decision = String(payload.decision ?? "");
     const dt = String(payload.decision_type ?? "");
-    return dt.includes("DENIED") || dt.includes("REJECTED");
+    return decision === "DENY" || dt.includes("DENIED") || dt.includes("REJECTED");
   });
 
   // Ops actions (ARM, DISARM, KILL)
@@ -717,18 +714,19 @@ export function buildDaySummary(
   });
   const symbolsInvolved = Array.from(symbolSet);
 
-  // CORREÇÃO CRÍTICA: Verificar eventos EXEC_* para determinar se houve execução simulada
-  const execFills = events.filter((e) => 
-    e.event_type === "EXECUTOR_EVENT" && 
-    (e.payload as Record<string, unknown>).executor_event_type === "INFO" &&
-    ((e.payload as Record<string, unknown>).details as Record<string, unknown>)?.event_type === "EXEC_SIMULATED_FILL"
-  );
-  const execPositionOpened = events.filter((e) => 
-    e.event_type === "EXECUTOR_EVENT" && 
-    (e.payload as Record<string, unknown>).executor_event_type === "INFO" &&
-    ((e.payload as Record<string, unknown>).details as Record<string, unknown>)?.event_type === "EXEC_POSITION_OPENED"
-  );
+  // CORREÇÃO CRÍTICA: Verificar eventos EXEC_* normalizados para determinar se houve execução simulada
+  const execFills = events.filter((e) => e.event_type === "EXEC_SIMULATED_FILL");
+  const execPositionOpened = events.filter((e) => e.event_type === "EXEC_POSITION_OPENED");
+  
+  // Verificar também comandos enviados
+  const executorCommands = events.filter((e) => e.event_type === "EXECUTOR_COMMAND");
+  const commandsSent = executorCommands.filter((e) => {
+    const payload = (typeof e.payload === "string" ? JSON.parse(e.payload) : e.payload) as Record<string, unknown>;
+    return payload.result_ok === true;
+  });
+  
   const hadSimulatedExecution = execFills.length > 0 || execPositionOpened.length > 0;
+  const hadCommandsSent = commandsSent.length > 0;
 
   // Determinar outcome
   let outcome: DayNarrativeSummary["outcome"];
@@ -744,10 +742,14 @@ export function buildDaySummary(
     // CORREÇÃO: PM aprovou E houve execução simulada
     outcome = "TRADE_EXECUTED";
     outcomeExplanation = `${pmApprovals.length} operação(ões) aprovada(s) e executada(s) em modo simulado. ${pmDenials.length > 0 ? `${pmDenials.length} negada(s).` : ""}`;
-  } else if (pmApprovals.length > 0 && !hadSimulatedExecution) {
-    // PM aprovou mas não houve fill (possível G0 ou executor down)
+  } else if (pmApprovals.length > 0 && hadCommandsSent && !hadSimulatedExecution) {
+    // CORREÇÃO 2: PM aprovou + comandos enviados = ARMED_ACTION_SENT (nunca NO_TRADE)
+    outcome = "PARTIAL";
+    outcomeExplanation = `${pmApprovals.length} operação(ões) aprovada(s) e comando(s) enviado(s), mas sem fill confirmado (ARMED_ACTION_SENT).`;
+  } else if (pmApprovals.length > 0 && !hadCommandsSent && !hadSimulatedExecution) {
+    // PM aprovou mas não houve comandos enviados (possível G0 ou executor down)
     outcome = "NO_TRADE";
-    outcomeExplanation = `${pmApprovals.length} operação(ões) aprovada(s) pelo PM, mas sem execução (modo shadow ou executor indisponível).`;
+    outcomeExplanation = `${pmApprovals.length} operação(ões) aprovada(s) pelo PM, mas sem comandos enviados (modo shadow ou executor indisponível).`;
   } else if (brainIntents.length > 0 && pmDenials.length > 0) {
     outcome = "NO_TRADE";
     outcomeExplanation = `Cérebros geraram ${brainIntents.length} intent(s), mas PM negou todas as operações.`;

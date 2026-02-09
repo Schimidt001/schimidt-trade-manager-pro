@@ -238,17 +238,42 @@ export async function handleExecutorEvent(event: ExecutorEvent): Promise<void> {
   // Determinar severidade baseada no tipo de evento
   const severity = event.type === "ERROR" ? "ERROR" : "INFO";
 
+  // CORREÇÃO 1: Normalizar eventos de execução
+  // Se o evento contém details.event_type (EXEC_SIMULATED_FILL, etc.),
+  // criar evento explícito ao invés de apenas wrapper EXECUTOR_EVENT
+  const details = event.details as Record<string, unknown> | undefined;
+  const execEventType = details?.event_type as string | undefined;
+
+  // Tipos de eventos que devem ser normalizados
+  const normalizedEventTypes = [
+    "EXEC_SIMULATED_FILL",
+    "EXEC_POSITION_OPENED",
+    "EXEC_POSITION_CLOSED",
+    "EXEC_POSITION_UPDATED",
+    "EXEC_PNL_UPDATE",
+    "EXEC_DAY_SUMMARY",
+  ];
+
+  let eventType = "EXECUTOR_EVENT";
+  let reasonCode = event.type === "ERROR" ? "EXEC_ORDER_FAILED" : "EXEC_STATE_CHANGE";
+
+  if (execEventType && normalizedEventTypes.includes(execEventType)) {
+    // Criar evento explícito
+    eventType = execEventType;
+    reasonCode = execEventType;
+  }
+
   // Persistir no ledger
   const ledgerEvent = {
     event_id: eventId,
     correlation_id: correlationId,
     timestamp,
     severity: severity as "INFO" | "WARN" | "ERROR",
-    event_type: "EXECUTOR_EVENT",
+    event_type: eventType,
     component: "SYSTEM" as const,
     symbol: event.symbol || null,
     brain_id: null,
-    reason_code: event.type === "ERROR" ? "EXEC_ORDER_FAILED" : "EXEC_STATE_CHANGE",
+    reason_code: reasonCode,
     payload: {
       executor_event_type: event.type,
       symbol: event.symbol,
