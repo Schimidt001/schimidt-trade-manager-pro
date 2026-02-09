@@ -462,9 +462,9 @@ export async function runTick(input: TickInput): Promise<TickResult> {
         symbol: intent.symbol,
         brain_id: intent.brain_id,
         reason_code: intent.why.reason_code,
-          payload: {
-            ...(intent as unknown as Record<string, unknown>),
-            data_source: useRealData ? "CTRADER" : "MOCK",
+        payload: {
+          ...(intent as unknown as Record<string, unknown>),
+          data_source: useRealData ? "CTRADER" : "MOCK",
           ...(scenarioActive ? { scenario: scenarioActive } : {}),
         },
       });
@@ -487,7 +487,6 @@ export async function runTick(input: TickInput): Promise<TickResult> {
     const decision = evaluateIntent(pmInput);
     decisions.push(decision);
 
-    const isIntentMock = isMock;
     eventsToStore.push({
       event_id: decision.event_id,
       correlation_id: decision.correlation_id,

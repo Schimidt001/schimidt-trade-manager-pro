@@ -116,21 +116,15 @@ export function generateIntent(input: BrainInput): BrainIntent | null {
 
   const intentType = isLong ? "OPEN_LONG" : "OPEN_SHORT";
 
-  // Calcular níveis de preço baseados no ATR
-  // Usamos o spread como proxy do preço atual (entry)
-  // O preço real de entrada é derivado do contexto
-  // Para A2, a lógica de preço é:
-  // Entry = referência (último preço conhecido)
+  // Calcular níveis de preço baseados no ATR e preço real
+  // Entry = last_close (preço real do último candle H1)
   // SL = entry -/+ ATR * multiplier
   // TP = entry +/- ATR * multiplier
   const stopDistance = atr * SL_ATR_MULTIPLIER;
   const profitDistance = atr * TP_ATR_MULTIPLIER;
 
-  // Usar ATR como base de referência para entry price
-  // O agente de execução (Agent 4) substituirá pelo preço real
-  const refPrice = atr * 50; // referência escalada
-
-  const entryPriceCalc = refPrice;
+  // Usar preço real do último candle H1 como entry price
+  const entryPriceCalc = mcl.metrics.last_close;
   const stopLoss = isLong
     ? entryPriceCalc - stopDistance
     : entryPriceCalc + stopDistance;

@@ -144,9 +144,9 @@ export function generateIntent(input: BrainInput): BrainIntent | null {
 
   const stopDistance = atr * SL_ATR_MULTIPLIER;
   const profitDistance = atr * tpMultiplier;
-  const refPrice = atr * 50;
 
-  const entryPrice = refPrice;
+  // Usar preço real do último candle H1 como entry price
+  const entryPrice = mcl.metrics.last_close;
   const stopLoss = isLong
     ? entryPrice - stopDistance
     : entryPrice + stopDistance;
