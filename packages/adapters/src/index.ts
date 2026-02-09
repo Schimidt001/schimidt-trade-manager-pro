@@ -86,3 +86,46 @@ export type {
   MappingEhmAction,
   MappingConfig,
 } from "./executor/mapping";
+
+// ═════════════════════════════════════════════════════════════
+// Market Data Provider (FOREX Real)
+// ═════════════════════════════════════════════════════════════
+
+// ─── Market Data Types ──────────────────────────────────────
+export type {
+  RawOhlcCandle,
+  MarketTimeframe,
+  FetchResult,
+  MarketDataSnapshot,
+  ComputedMetrics,
+  SessionName,
+  RealMclInput,
+} from "./market/index";
+
+export {
+  TYPICAL_SPREADS_BPS,
+  DEFAULT_SPREAD_BPS,
+  SYMBOL_TO_YAHOO,
+} from "./market/index";
+
+// ─── Market Data Fetch ──────────────────────────────────────
+export {
+  fetchMarketData,
+  fetchMultipleMarketData,
+} from "./market/index";
+
+// ─── Market Metrics Computation ─────────────────────────────
+export {
+  computeATR,
+  determineSession,
+  computeSessionOverlap,
+  computeSpreadProxy,
+  computeVolumeRatio,
+  computeCorrelationIndex,
+  computeRangeExpansion,
+  computeAllMetrics,
+  determineSessionFromTimestamp,
+} from "./market/index";
+
+// ─── Build Real MCL Input ───────────────────────────────────
+export { buildRealMclInput } from "./market/index";

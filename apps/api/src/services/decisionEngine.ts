@@ -5,6 +5,10 @@
 // Usa packages/core para lógica pura.
 // Persiste cada evento via ledgerService.
 // Respeita Gate State (G0 shadow = não envia comandos).
+//
+// MARKET DATA: Alimentado por dados REAIS de FOREX via
+// @schimidt-brain/adapters (Market Data Provider).
+// O buildMockMclInput() foi substituído por buildRealMclInput().
 // ═══════════════════════════════════════════════════════════════
 
 import {
@@ -28,8 +32,17 @@ import {
   Severity,
   ReasonCode,
 } from "@schimidt-brain/contracts";
-import { mapDecisionToExecutorCommands } from "@schimidt-brain/adapters";
-import type { MappingDecision, MappingIntent, MappingConfig } from "@schimidt-brain/adapters";
+import {
+  mapDecisionToExecutorCommands,
+  fetchMultipleMarketData,
+  buildRealMclInput,
+} from "@schimidt-brain/adapters";
+import type {
+  MappingDecision,
+  MappingIntent,
+  MappingConfig,
+  MarketDataSnapshot,
+} from "@schimidt-brain/adapters";
 import type { LedgerEventInput } from "@schimidt-brain/db";
 import type { Component } from "@schimidt-brain/db";
 import { persistEvent } from "./ledgerService";
@@ -39,6 +52,7 @@ import {
   getOperationalState,
   canSendCommands,
   setGlobalMode,
+  setMockMode,
 } from "../config/gates";
 import {
   getScenarioOverrides,
@@ -103,35 +117,21 @@ function getDefaultPortfolioState(): PortfolioState {
   };
 }
 
-// ─── Mock MCL Input Builder ─────────────────────────────────────
-// Gera cenários variados por símbolo para que diferentes brains
-// encontrem edge. Cada símbolo recebe um perfil de mercado distinto.
+// ─── Mock MCL Input Builder (LEGACY — mantido para cenários de teste) ───
+// Usado APENAS quando scenarioOverrides está ativo (G0/G1 test scenarios).
+// Em produção (AUTO), buildRealMclInput() é usado.
 
 interface SymbolProfile {
   session: typeof MarketSession[keyof typeof MarketSession];
   event_state: typeof EventProximity[keyof typeof EventProximity];
-  /** M15 bars com wicks/ranges que influenciam liquidity classification */
   m15Override: "buildup" | "raid" | "clean";
-  /** H1 bars trending ou ranging */
   h1Override: "trending" | "ranging";
-  /** Métricas que influenciam a classificação */
   volume_ratio: number;
   correlation_index: number;
   session_overlap: number;
   range_expansion: number;
 }
 
-/**
- * Perfis de mercado por símbolo.
- * Cada perfil é desenhado para ativar brains específicos:
- *
- * EURUSD → BUILDUP (ativa A2 Liquidity Predator)
- * GBPUSD → TREND + CLEAN + volume alto (ativa C3 Momentum)
- * USDJPY → correlação baixa (ativa B3 Relative Value)
- * BTCUSD → PRE_EVENT (ativa D2 News)
- *
- * Símbolos não mapeados recebem perfil default que ativa A2.
- */
 const SYMBOL_PROFILES: Record<string, SymbolProfile> = {
   EURUSD: {
     session: MarketSession.LONDON,
@@ -194,8 +194,6 @@ function buildMockMclInput(
   scenarioOverrides?: ScenarioOverrides | null
 ): MclInput {
   const basePrice = symbol.includes("BTC") ? 45000 : 1.08;
-  // Se há scenario overrides, usá-los em vez do perfil por símbolo.
-  // Isto permite forçar um contexto de mercado específico para validação.
   const symbolProfile = SYMBOL_PROFILES[symbol] ?? DEFAULT_PROFILE;
   const profile = scenarioOverrides
     ? {
@@ -210,17 +208,14 @@ function buildMockMclInput(
       }
     : symbolProfile;
 
-  // ─── H1 bars: trending ou ranging ─────────────────────────────
   let h1Bars;
   if (profile.h1Override === "trending") {
-    // Higher highs + higher lows → classifyStructure retorna TREND
     h1Bars = [
       { open: basePrice * 0.990, high: basePrice * 0.995, low: basePrice * 0.988, close: basePrice * 0.994, volume: 2000, timestamp },
       { open: basePrice * 0.994, high: basePrice * 1.000, low: basePrice * 0.992, close: basePrice * 0.999, volume: 2200, timestamp },
       { open: basePrice * 0.999, high: basePrice * 1.006, low: basePrice * 0.997, close: basePrice * 1.005, volume: 2500, timestamp },
     ];
   } else {
-    // Ranging — sem HH/HL pattern
     h1Bars = [
       { open: basePrice * 0.998, high: basePrice * 1.002, low: basePrice * 0.997, close: basePrice * 0.999, volume: 2000, timestamp },
       { open: basePrice * 0.999, high: basePrice * 1.004, low: basePrice * 0.998, close: basePrice * 1.001, volume: 2200, timestamp },
@@ -228,28 +223,18 @@ function buildMockMclInput(
     ];
   }
 
-  // ─── M15 bars: buildup, raid ou clean ─────────────────────────
   let m15Bars;
   if (profile.m15Override === "buildup") {
-    // Range compression + volume baixo + overlap alto → classifyLiquidity retorna BUILDUP
-    // prevBar range = 0.010, lastBar range = 0.004 → compression = 0.4 < 0.6 ✓
-    // volume_ratio < 0.8 ✓ (set via profile)
-    // session_overlap > 0.3 ✓ (set via profile)
     m15Bars = [
       { open: basePrice * 1.000, high: basePrice * 1.010, low: basePrice * 1.000, close: basePrice * 1.005, volume: 800, timestamp },
       { open: basePrice * 1.003, high: basePrice * 1.005, low: basePrice * 1.001, close: basePrice * 1.004, volume: 400, timestamp },
     ];
   } else if (profile.m15Override === "raid") {
-    // Large wick (small body vs range) + volume alto + overlap baixo → RAID
-    // wickRatio = body/range = 0.001/0.008 ≈ 0.125 < 0.3 ✓
-    // volume_ratio > 1.5 ✓ (set via profile)
-    // session_overlap < 0.5 ✓ (set via profile)
     m15Bars = [
       { open: basePrice * 1.000, high: basePrice * 1.006, low: basePrice * 0.998, close: basePrice * 1.003, volume: 800, timestamp },
       { open: basePrice * 1.004, high: basePrice * 1.008, low: basePrice * 1.000, close: basePrice * 1.0041, volume: 2000, timestamp },
     ];
   } else {
-    // Clean — normal bars
     m15Bars = [
       { open: basePrice * 1.003, high: basePrice * 1.006, low: basePrice * 1.002, close: basePrice * 1.004, volume: 800, timestamp },
       { open: basePrice * 1.004, high: basePrice * 1.007, low: basePrice * 1.003, close: basePrice * 1.005, volume: 900, timestamp },
@@ -310,7 +295,7 @@ function brainToComponent(brainId: string): Component {
  * Executa um ciclo completo de decisão (tick).
  *
  * Pipeline:
- * 1. Para cada símbolo: gerar MCL snapshot
+ * 1. Para cada símbolo: buscar dados REAIS de mercado e gerar MCL snapshot
  * 2. Para cada snapshot: rodar todos os brains
  *    → Se brain retorna null (sem edge), registrar evento BRAIN_INTENT skip
  *    → Se brain retorna intent, registrar evento BRAIN_INTENT
@@ -325,12 +310,8 @@ export async function runTick(input: TickInput): Promise<TickResult> {
   const correlationId = newCorrelationId();
   const timestamp = nowISO();
   const opsState = getOperationalState();
-  const isMock = opsState.mock_mode;
 
   // ─── Scenario Controller (G0/G1 only) ─────────────────────────
-  // Resolve o cenário: se o gate permite e um cenário foi pedido,
-  // obter os overrides. Caso contrário, null (comportamento actual).
-  // O cenário NÃO persiste após o tick — é resolvido aqui e descartado.
   const requestedScenario = input.scenario ?? "AUTO";
   const scenarioActive =
     requestedScenario !== "AUTO" && isScenarioAllowed(opsState.gate)
@@ -340,15 +321,70 @@ export async function runTick(input: TickInput): Promise<TickResult> {
     ? getScenarioOverrides(scenarioActive)
     : null;
 
+  // ─── Determinar se usamos dados reais ou mock ─────────────────
+  // Se há scenarioOverrides ativo → usar mock (cenário de teste forçado)
+  // Se não há scenario → usar dados REAIS de mercado
+  const useRealData = !scenarioOverrides;
+
+  // Atualizar mock_mode no estado operacional
+  if (useRealData) {
+    setMockMode(false);
+  } else {
+    setMockMode(true);
+  }
+
+  const isMock = !useRealData;
+
   const snapshots: MclSnapshot[] = [];
   const intents: BrainIntent[] = [];
   const decisions: PmDecision[] = [];
   const eventsToStore: LedgerEventInput[] = [];
 
+  // ─── Buscar dados reais de mercado (se necessário) ────────────
+  let marketDataMap: Map<string, MarketDataSnapshot> | null = null;
+  if (useRealData) {
+    try {
+      marketDataMap = await fetchMultipleMarketData(input.symbols);
+      console.log(
+        `[DecisionEngine] Dados reais obtidos para ${marketDataMap.size}/${input.symbols.length} símbolos`
+      );
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.error(`[DecisionEngine] Falha ao buscar dados reais: ${err.message}`);
+      console.warn("[DecisionEngine] Fallback para dados mock");
+      marketDataMap = null;
+      setMockMode(true);
+    }
+  }
+
   // ─── 1. MCL Snapshots ───────────────────────────────────────
   for (const symbol of input.symbols) {
     const mclEventId = newEventId();
-    const mclInput = buildMockMclInput(symbol, mclEventId, correlationId, timestamp, scenarioOverrides);
+
+    let mclInput: MclInput;
+    let isSymbolMock = isMock;
+
+    if (useRealData && marketDataMap?.has(symbol)) {
+      // ─── DADOS REAIS ─────────────────────────────────────────
+      const marketData = marketDataMap.get(symbol)!;
+      const realInput = buildRealMclInput(
+        marketData,
+        mclEventId,
+        correlationId,
+        timestamp,
+        EventProximity.NONE,  // Event state será integrado com calendar service
+        resolveGlobalMode(),
+        ExecutionHealth.OK
+      );
+      // Cast para MclInput (tipos são compatíveis)
+      mclInput = realInput as unknown as MclInput;
+      isSymbolMock = false;
+    } else {
+      // ─── MOCK (cenário de teste ou fallback) ─────────────────
+      mclInput = buildMockMclInput(symbol, mclEventId, correlationId, timestamp, scenarioOverrides);
+      isSymbolMock = true;
+    }
+
     const snapshot = computeMarketContext(mclInput);
     snapshots.push(snapshot);
 
@@ -364,10 +400,11 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       component: "MCL",
       symbol: snapshot.symbol,
       brain_id: null,
-      reason_code: isMock ? ReasonCode.MOCK_MCL_SNAPSHOT : snapshot.why.reason_code,
+      reason_code: isSymbolMock ? ReasonCode.MOCK_MCL_SNAPSHOT : snapshot.why.reason_code,
       payload: {
         ...(snapshot as unknown as Record<string, unknown>),
-        mock: isMock,
+        mock: isSymbolMock,
+        data_source: isSymbolMock ? "MOCK" : "YAHOO_FINANCE",
         ...(scenarioActive ? { scenario: scenarioActive } : {}),
       },
     });
@@ -386,9 +423,6 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       const intent = generateIntent(brainInput);
 
       if (intent === null) {
-        // Brain não encontrou edge — registrar evento de skip
-        // Isso garante que "0 intents" nunca aconteça no ledger:
-        // cada brain sempre gera um evento, mesmo que seja skip.
         eventsToStore.push({
           event_id: brainEventId,
           correlation_id: correlationId,
@@ -398,7 +432,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
           component: brainToComponent(brainId),
           symbol,
           brain_id: brainId,
-          reason_code: isMock ? ReasonCode.MOCK_BRAIN_SKIP : ReasonCode.MCL_STRUCTURE_CHANGE,
+          reason_code: isSymbolMock ? ReasonCode.MOCK_BRAIN_SKIP : ReasonCode.MCL_STRUCTURE_CHANGE,
           payload: {
             event_id: brainEventId,
             correlation_id: correlationId,
@@ -409,7 +443,8 @@ export async function runTick(input: TickInput): Promise<TickResult> {
             skip_reason: `${brainId} não encontrou edge no contexto atual`,
             market_states: snapshot.market_states,
             metrics: snapshot.metrics,
-            mock: isMock,
+            mock: isSymbolMock,
+            data_source: isSymbolMock ? "MOCK" : "YAHOO_FINANCE",
             ...(scenarioActive ? { scenario: scenarioActive } : {}),
           },
         });
@@ -427,16 +462,18 @@ export async function runTick(input: TickInput): Promise<TickResult> {
         component: brainToComponent(brainId),
         symbol: intent.symbol,
         brain_id: intent.brain_id,
-        reason_code: isMock ? ReasonCode.MOCK_BRAIN_INTENT : intent.why.reason_code,
-        payload: { ...(intent as unknown as Record<string, unknown>), mock: isMock, ...(scenarioActive ? { scenario: scenarioActive } : {}) },
+        reason_code: isSymbolMock ? ReasonCode.MOCK_BRAIN_INTENT : intent.why.reason_code,
+        payload: {
+          ...(intent as unknown as Record<string, unknown>),
+          mock: isSymbolMock,
+          data_source: isSymbolMock ? "MOCK" : "YAHOO_FINANCE",
+          ...(scenarioActive ? { scenario: scenarioActive } : {}),
+        },
       });
     }
   }
 
   // ─── 3. Intent Arbitration ──────────────────────────────────
-  // Coletar todos os intents emitidos pelos brains.
-  // Nesta fase, todos os intents válidos seguem para o PM.
-  // Arbitração futura pode priorizar/filtrar aqui.
   const arbitratedIntents = [...intents];
 
   // ─── 4. PM Decision (para cada intent arbitrado) ────────────
@@ -452,6 +489,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
     const decision = evaluateIntent(pmInput);
     decisions.push(decision);
 
+    const isIntentMock = isMock;
     eventsToStore.push({
       event_id: decision.event_id,
       correlation_id: decision.correlation_id,
@@ -461,8 +499,13 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       component: "PM",
       symbol: intent.symbol,
       brain_id: intent.brain_id,
-      reason_code: isMock ? ReasonCode.MOCK_PM_DECISION : decision.why.reason_code,
-      payload: { ...(decision as unknown as Record<string, unknown>), mock: isMock, ...(scenarioActive ? { scenario: scenarioActive } : {}) },
+      reason_code: isIntentMock ? ReasonCode.MOCK_PM_DECISION : decision.why.reason_code,
+      payload: {
+        ...(decision as unknown as Record<string, unknown>),
+        mock: isIntentMock,
+        data_source: isIntentMock ? "MOCK" : "YAHOO_FINANCE",
+        ...(scenarioActive ? { scenario: scenarioActive } : {}),
+      },
     });
   }
 
@@ -473,7 +516,6 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       const inserted = await persistEvent(event);
       if (inserted) eventsPersisted++;
     } catch (err) {
-      // Log error but continue — não perder outros eventos
       console.error(`Erro ao persistir evento ${event.event_id}:`, err);
     }
   }
@@ -522,9 +564,6 @@ export async function runTick(input: TickInput): Promise<TickResult> {
   }
 
   // ─── 7. Entrega C: Execução simulada evidenciada ────────────
-  // Para cada PM_DECISION, gerar evento de execução simulada
-  // (EXEC_SIMULATED_COMMAND ou EXEC_SIMULATED_NOOP) no ledger.
-  // Isso garante rastro auditável de que a decisão "virou ação".
   for (let i = 0; i < decisions.length; i++) {
     const decision = decisions[i];
     const intent = arbitratedIntents[i];
@@ -549,6 +588,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
         timestamp: nowISO(),
         severity: "INFO",
         mock: isMock,
+        data_source: isMock ? "MOCK" : "YAHOO_FINANCE",
         gate: opsState.gate,
         armed: opsState.arm_state === "ARMED",
         commands_sent: commandsSent,
