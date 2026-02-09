@@ -357,6 +357,9 @@ export class ExecutorSimulator implements IExecutorAdapter {
     const now = new Date().toISOString();
     const events: ExecutorEvent[] = [];
 
+    // CORREÇÃO CRÍTICA: Preservar correlation_id do comando original
+    const correlationId = cmd.correlation_id;
+
     // 1. EXEC_SIMULATED_COMMAND (já emitido via _emitFakeEvent)
 
     // 2. EXEC_SIMULATED_FILL
@@ -375,6 +378,7 @@ export class ExecutorSimulator implements IExecutorAdapter {
         simulator_mode: this._simulatorMode,
       },
       timestamp: now,
+      correlation_id: correlationId,
     });
 
     // 3. EXEC_POSITION_OPENED
@@ -410,6 +414,7 @@ export class ExecutorSimulator implements IExecutorAdapter {
         simulator_mode: this._simulatorMode,
       },
       timestamp: now,
+      correlation_id: correlationId,
     });
 
     // 4. EXEC_PNL_UPDATE (inicial, PnL = 0)
@@ -428,6 +433,7 @@ export class ExecutorSimulator implements IExecutorAdapter {
         simulator_mode: this._simulatorMode,
       },
       timestamp: now,
+      correlation_id: correlationId,
     });
 
     // Adicionar eventos ao log

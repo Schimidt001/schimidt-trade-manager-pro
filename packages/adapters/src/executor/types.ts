@@ -80,6 +80,8 @@ export interface ExecutorCommand {
   type: ExecutorCommandType;
   /** Payload específico do comando (JSON) */
   payload: Record<string, unknown>;
+  /** Correlation ID do tick que originou este comando (para rastreabilidade) */
+  correlation_id?: string;
 }
 
 /**
@@ -120,6 +122,8 @@ export interface ExecutorEvent {
   details: Record<string, unknown>;
   /** Timestamp ISO 8601 do evento no executor */
   timestamp: string;
+  /** Correlation ID do comando original (para manter rastreabilidade) */
+  correlation_id?: string;
 }
 
 // ─── Executor Adapter Interface ───────────────────────────────

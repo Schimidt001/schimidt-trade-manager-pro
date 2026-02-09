@@ -106,11 +106,15 @@ export interface DayNarrativeSummary {
   day_totals: {
     /** Total de ticks executados no dia */
     total_ticks: number;
-    /** Ticks com PM_DECISION = ALLOW */
-    allow_count: number;
+    /** Ticks com pelo menos uma PM_DECISION = ALLOW */
+    allow_ticks: number;
+    /** Total de decisões PM_DECISION = ALLOW */
+    allow_decisions: number;
     /** Ticks sem trade (BRAIN_SKIP ou PM_DENY) */
     no_trade_ticks: number;
-    /** Comandos enviados ao executor */
+    /** Ticks com pelo menos um comando enviado */
+    commands_sent_ticks: number;
+    /** Total de comandos enviados ao executor */
     commands_sent: number;
     /** Fills confirmados */
     fills: number;
@@ -677,7 +681,9 @@ export function buildWhyNoTrade(events: LedgerEventRow[]): WhyNoTradeExplanation
   // Gerar resumo narrativo
   let summary: string;
   if (hadTrade) {
-    summary = `O sistema executou ${approvals.length} operação(ões) simulada(s) neste dia (paper trading). ${denials.length > 0 ? `${denials.length} intent(s) foram negados pelo PM.` : ""}`;
+    // CORREÇÃO: Basear em fills/positions, não em approvals
+    const tradesExecuted = Math.max(execFills.length, execPositionOpened.length);
+    summary = `O sistema executou ${tradesExecuted} operação(ões) simulada(s) neste dia (paper trading). ${denials.length > 0 ? `${denials.length} intent(s) foram negados pelo PM.` : ""}`;
   } else if (approvals.length > 0 && !hadSimulatedExecution) {
     summary = `PM aprovou ${approvals.length} operação(ões), mas não houve execução (modo shadow ou executor indisponível).`;
   } else if (brainSkips.length > 0 && pmDecisions.length === 0) {
@@ -903,7 +909,9 @@ export function buildDaySummary(
   let title: string;
   switch (outcome) {
     case "TRADE_EXECUTED":
-      title = `Dia operacional — ${pmApprovals.length} trade(s) executado(s)${scenarioSuffix}`;
+      // CORREÇÃO: Basear em fills/positions, não em pmApprovals
+      const tradesExecuted = Math.max(execFills.length, execPositionOpened.length);
+      title = `Dia operacional — ${tradesExecuted} trade(s) executado(s)${scenarioSuffix}`;
       break;
     case "NO_TRADE":
       title = `Dia sem operação — pipeline executou mas sem edge${scenarioSuffix}`;
@@ -973,12 +981,16 @@ export function buildDaySummary(
     // Day Totals - Agregação de múltiplos ticks
     day_totals: {
       total_ticks: new Set(events.map((e) => e.correlation_id)).size,
-      allow_count: pmApprovals.length,
+      // CORREÇÃO: Separar ticks com ALLOW vs total de decisões ALLOW
+      allow_ticks: new Set(pmApprovals.map((e) => e.correlation_id)).size,
+      allow_decisions: pmApprovals.length,
       no_trade_ticks: new Set(
         events
           .filter((e) => e.event_type === "BRAIN_SKIP" || (e.event_type === "PM_DECISION" && pmDenials.some((d) => d.event_id === e.event_id)))
           .map((e) => e.correlation_id)
       ).size,
+      // CORREÇÃO: Separar ticks com commands vs total de commands
+      commands_sent_ticks: new Set(commandsSent.map((e) => e.correlation_id)).size,
       commands_sent: commandsSent.length,
       fills: execFills.length,
       positions_opened: execPositionOpened.length,

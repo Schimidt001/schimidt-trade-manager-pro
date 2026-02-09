@@ -156,10 +156,16 @@ export async function applyCommands(
   let failed = 0;
 
   for (const cmd of commands) {
+    // CORREÇÃO: Incluir correlation_id no comando para rastreabilidade
+    const cmdWithCorrelation: ExecutorCommand = {
+      ...cmd,
+      correlation_id: corrId,
+    };
+
     let result: ExecutorCommandResult;
 
     try {
-      result = await adapter.sendCommand(cmd);
+      result = await adapter.sendCommand(cmdWithCorrelation);
     } catch (err) {
       result = {
         ok: false,
@@ -232,7 +238,8 @@ export async function applyCommands(
  */
 export async function handleExecutorEvent(event: ExecutorEvent): Promise<void> {
   const eventId = newEventId();
-  const correlationId = newCorrelationId();
+  // CORREÇÃO CRÍTICA: Preservar correlation_id do evento original
+  const correlationId = event.correlation_id ?? newCorrelationId();
   const timestamp = nowISO();
 
   // Determinar severidade baseada no tipo de evento
