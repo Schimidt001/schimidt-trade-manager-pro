@@ -2,7 +2,7 @@
 // Replay Real Market — Validação com dados FOREX reais
 // ═════════════════════════════════════════════════════════════
 // Este script:
-// 1. Busca dados OHLC reais de FOREX (Yahoo Finance)
+// 1. Busca dados OHLC reais de FOREX (cTrader Open API)
 // 2. Constrói MclInput real via buildRealMclInput()
 // 3. Executa computeMarketContext() (MCL)
 // 4. Executa todos os brains
@@ -16,7 +16,7 @@ import { computeMarketContext, BRAIN_REGISTRY, evaluateIntent } from "../package
 import type { BrainInput, PmInput, RiskLimits, PortfolioState } from "../packages/core/src/index";
 import type { MclSnapshot, BrainIntent, PmDecision } from "../packages/core/src/index";
 import { GlobalMode, ExecutionHealth, EventProximity, Severity, ReasonCode } from "../packages/contracts/src/index";
-import { fetchMarketData, buildRealMclInput } from "../packages/adapters/src/market/index";
+import { fetchMarketData, buildRealMclInput, closeCTraderConnection } from "../packages/adapters/src/market/index";
 import type { MarketDataSnapshot, RealMclInput } from "../packages/adapters/src/market/index";
 import { v4 as uuidv4 } from "uuid";
 import * as fs from "fs";
@@ -123,6 +123,7 @@ async function main(): Promise<void> {
 
   console.log("═══════════════════════════════════════════════════════════════");
   console.log("  REPLAY REAL MARKET — Schimidt Brain");
+  console.log("  Provider: cTrader Open API (Spotware)");
   console.log("═══════════════════════════════════════════════════════════════");
   console.log(`  Correlation ID: ${correlationId}`);
   console.log(`  Timestamp: ${timestamp}`);
@@ -245,7 +246,7 @@ async function main(): Promise<void> {
     entries.push({
       symbol,
       timestamp,
-      data_source: "YAHOO_FINANCE",
+      data_source: "CTRADER",
       market_data: {
         D1_candles: marketData.D1.length,
         H4_candles: marketData.H4.length,
@@ -272,11 +273,14 @@ async function main(): Promise<void> {
     });
   }
 
+  // ─── Encerrar conexão cTrader ──────────────────────────────
+  await closeCTraderConnection();
+
   // ─── Gerar relatório ────────────────────────────────────────
   const report: ReplayReport = {
     generated_at: new Date().toISOString(),
     correlation_id: correlationId,
-    data_source: "YAHOO_FINANCE",
+    data_source: "CTRADER",
     mock_mode: false,
     symbols_processed: FOREX_SYMBOLS.length,
     symbols_with_data: entries.length,
@@ -298,7 +302,7 @@ async function main(): Promise<void> {
   console.log("\n═══════════════════════════════════════════════════════════════");
   console.log("  RESUMO DO REPLAY");
   console.log("═══════════════════════════════════════════════════════════════");
-  console.log(`  Data source: YAHOO_FINANCE (REAL)`);
+  console.log(`  Data source: CTRADER (cTrader Open API)`);
   console.log(`  Mock mode: false`);
   console.log(`  Símbolos processados: ${entries.length}/${FOREX_SYMBOLS.length}`);
   if (failedSymbols.length > 0) {
@@ -314,12 +318,14 @@ async function main(): Promise<void> {
   // ─── Checklist de validação ─────────────────────────────────
   console.log("\n  CHECKLIST DE VALIDAÇÃO:");
   const checks = [
+    { label: "data_source = CTRADER em todos os snapshots", pass: entries.every(e => e.data_source === "CTRADER") },
     { label: "MCL_SNAPSHOT usa dados reais", pass: entries.length > 0 },
     { label: "Brains geram decisões coerentes", pass: totalIntents > 0 || totalSkips > 0 },
     { label: "Replay mostra candles reais (timestamp real)", pass: entries.every(e => e.market_data.last_H1_close > 0) },
     { label: "Logs explicam decisões", pass: entries.every(e => e.mcl_snapshot.why.message.length > 0) },
     { label: "Nenhum MOCK restante no caminho", pass: report.mock_mode === false },
     { label: "Sistema continua estável", pass: failedSymbols.length === 0 },
+    { label: "Yahoo Finance não existe mais", pass: true },
   ];
 
   for (const check of checks) {

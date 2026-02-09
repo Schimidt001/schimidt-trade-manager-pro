@@ -404,7 +404,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       payload: {
         ...(snapshot as unknown as Record<string, unknown>),
         mock: isSymbolMock,
-        data_source: isSymbolMock ? "MOCK" : "YAHOO_FINANCE",
+        data_source: isSymbolMock ? "MOCK" : "CTRADER",
         ...(scenarioActive ? { scenario: scenarioActive } : {}),
       },
     });
@@ -444,7 +444,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
             market_states: snapshot.market_states,
             metrics: snapshot.metrics,
             mock: isSymbolMock,
-            data_source: isSymbolMock ? "MOCK" : "YAHOO_FINANCE",
+            data_source: isSymbolMock ? "MOCK" : "CTRADER",
             ...(scenarioActive ? { scenario: scenarioActive } : {}),
           },
         });
@@ -466,7 +466,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
         payload: {
           ...(intent as unknown as Record<string, unknown>),
           mock: isSymbolMock,
-          data_source: isSymbolMock ? "MOCK" : "YAHOO_FINANCE",
+          data_source: isSymbolMock ? "MOCK" : "CTRADER",
           ...(scenarioActive ? { scenario: scenarioActive } : {}),
         },
       });
@@ -503,7 +503,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       payload: {
         ...(decision as unknown as Record<string, unknown>),
         mock: isIntentMock,
-        data_source: isIntentMock ? "MOCK" : "YAHOO_FINANCE",
+        data_source: isIntentMock ? "MOCK" : "CTRADER",
         ...(scenarioActive ? { scenario: scenarioActive } : {}),
       },
     });
@@ -588,7 +588,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
         timestamp: nowISO(),
         severity: "INFO",
         mock: isMock,
-        data_source: isMock ? "MOCK" : "YAHOO_FINANCE",
+        data_source: isMock ? "MOCK" : "CTRADER",
         gate: opsState.gate,
         armed: opsState.arm_state === "ARMED",
         commands_sent: commandsSent,

@@ -1,6 +1,7 @@
 // ═════════════════════════════════════════════════════════════
 // @schimidt-brain/adapters — Market Data Types
 // Tipos para o provider de dados de mercado FOREX real.
+// Provider: cTrader Open API (Spotware)
 // ═════════════════════════════════════════════════════════════
 
 // ─── Raw OHLC Candle ────────────────────────────────────────
@@ -81,18 +82,53 @@ export const TYPICAL_SPREADS_BPS: Readonly<Record<string, number>> = {
 /** Spread default para pares não mapeados */
 export const DEFAULT_SPREAD_BPS = 8;
 
-// ─── Symbol Mapping ─────────────────────────────────────────
+// ─── Symbol Mapping (cTrader) ──────────────────────────────
 
 /**
- * Mapeamento de símbolo interno para símbolo do provider Yahoo Finance.
- * FOREX no Yahoo Finance usa formato "EURUSD=X".
+ * Mapeamento de símbolo interno para nome do símbolo no cTrader.
+ * Os symbolIds numéricos são resolvidos dinamicamente via
+ * ProtoOASymbolsListReq na primeira conexão.
  */
-export const SYMBOL_TO_YAHOO: Readonly<Record<string, string>> = {
-  EURUSD: "EURUSD=X",
-  GBPUSD: "GBPUSD=X",
-  USDJPY: "USDJPY=X",
-  AUDUSD: "AUDUSD=X",
-  USDCHF: "USDCHF=X",
-  USDCAD: "USDCAD=X",
-  NZDUSD: "NZDUSD=X",
+export const SYMBOL_TO_CTRADER: Readonly<Record<string, string>> = {
+  EURUSD: "EURUSD",
+  GBPUSD: "GBPUSD",
+  USDJPY: "USDJPY",
+  AUDUSD: "AUDUSD",
+  USDCHF: "USDCHF",
+  USDCAD: "USDCAD",
+  NZDUSD: "NZDUSD",
 };
+
+// ─── cTrader Trendbar Period Mapping ────────────────────────
+
+/**
+ * Mapeamento de MarketTimeframe para ProtoOATrendbarPeriod (enum numérico).
+ * Conforme proto: M1=1, M2=2, M3=3, M4=4, M5=5, M10=6, M15=7, M30=8,
+ * H1=9, H4=10, H12=11, D1=12, W1=13, MN1=14
+ */
+export const TIMEFRAME_TO_CTRADER_PERIOD: Readonly<Record<MarketTimeframe, number>> = {
+  M15: 7,
+  H1: 9,
+  H4: 10,
+  D1: 12,
+};
+
+// ─── Data Quality ──────────────────────────────────────────
+
+/**
+ * Estado de qualidade dos dados de mercado.
+ * Usado pelo Data Quality Gate para sinalizar problemas.
+ */
+export type DataQualityStatus = "OK" | "DEGRADED" | "DOWN" | "MARKET_CLOSED";
+
+/**
+ * Resultado do Data Quality Gate.
+ */
+export interface DataQualityResult {
+  readonly status: DataQualityStatus;
+  readonly reason: string;
+  readonly gaps_detected: boolean;
+  readonly stale_data: boolean;
+  readonly market_closed: boolean;
+  readonly volume_missing: boolean;
+}
