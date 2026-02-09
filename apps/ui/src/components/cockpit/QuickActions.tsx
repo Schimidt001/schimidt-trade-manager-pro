@@ -6,6 +6,32 @@ import { apiPost } from "@/lib/api";
 import { canOperate } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
+// ─── Scenario Controller Types ──────────────────────────────────
+// Cenários de teste disponíveis (G0/G1 only).
+// AUTO = comportamento actual (sem override de cenário).
+type TestScenario =
+  | "AUTO"
+  | "RANGE"
+  | "TREND_CLEAN"
+  | "HIGH_VOL"
+  | "PRE_NEWS"
+  | "POST_NEWS"
+  | "LOW_LIQUIDITY"
+  | "STRESS";
+
+const SCENARIO_OPTIONS: { value: TestScenario; label: string }[] = [
+  { value: "AUTO", label: "AUTO" },
+  { value: "RANGE", label: "RANGE" },
+  { value: "TREND_CLEAN", label: "TREND_CLEAN" },
+  { value: "HIGH_VOL", label: "HIGH_VOL" },
+  { value: "PRE_NEWS", label: "PRE_NEWS" },
+  { value: "POST_NEWS", label: "POST_NEWS" },
+  { value: "LOW_LIQUIDITY", label: "LOW_LIQUIDITY" },
+  { value: "STRESS", label: "STRESS" },
+];
+
+// ─── Props ──────────────────────────────────────────────────────
+
 interface QuickActionsProps {
   armState: string;
   gate?: string;
@@ -18,8 +44,12 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
   const [activeAction, setActiveAction] = useState<ActionType>(null);
   const [loading, setLoading] = useState(false);
   const [tickResult, setTickResult] = useState<string | null>(null);
+  const [selectedScenario, setSelectedScenario] = useState<TestScenario>("AUTO");
   const isOperator = canOperate();
   const isShadowMode = gate === "G0";
+
+  // Cenários só disponíveis em G0 e G1. Em G2+ o seletor desaparece.
+  const isScenarioAllowed = gate === "G0" || gate === "G1";
 
   const handleConfirm = async (reason: string) => {
     if (!activeAction) return;
@@ -28,18 +58,32 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
 
     try {
       if (activeAction === "TICK") {
-        // Run Tick — envia lista de símbolos default
+        // Run Tick — envia lista de símbolos default + cenário selecionado
+        const tickBody: { symbols: string[]; scenario?: string } = {
+          symbols: ["EURUSD", "GBPUSD", "USDJPY", "BTCUSD"],
+        };
+        // Só enviar cenário se não for AUTO e se o gate permitir
+        if (selectedScenario !== "AUTO" && isScenarioAllowed) {
+          tickBody.scenario = selectedScenario;
+        }
+
         const result = await apiPost<{
           correlation_id: string;
           commands_sent: number;
+          scenario: string | null;
           summary: { snapshots: number; intents: number; decisions: number };
-        }>("/ops/tick", {
-          symbols: ["EURUSD", "GBPUSD", "USDJPY", "BTCUSD"],
-        });
+        }>("/ops/tick", tickBody);
+
+        const scenarioLabel = result.scenario
+          ? ` [${result.scenario}]`
+          : "";
         setTickResult(
-          `Tick executado: ${result.summary.snapshots} snapshots, ${result.summary.intents} intents, ${result.summary.decisions} decisions. Correlation ID: ${result.correlation_id}`
+          `Tick executado${scenarioLabel}: ${result.summary.snapshots} snapshots, ${result.summary.intents} intents, ${result.summary.decisions} decisions. Correlation ID: ${result.correlation_id}`
         );
         setTimeout(() => setTickResult(null), 10000);
+
+        // Reset cenário para AUTO após o tick (cenário não persiste)
+        setSelectedScenario("AUTO");
       } else {
         // ARM / DISARM / KILL
         const endpoint =
@@ -175,13 +219,54 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
           </button>
         )}
 
+        {/* ═══ Scenario Controller (G0/G1 only) ═══ */}
+        {/* Seletor de cenário de teste — só visível em G0 e G1 */}
+        {/* Em G2+ este bloco inteiro desaparece da UI */}
+        {isScenarioAllowed && (
+          <div className="rounded border border-cyan-500/30 bg-cyan-500/5 px-3 py-2.5">
+            <label
+              htmlFor="test-scenario"
+              className="block text-[10px] font-medium uppercase text-cyan-400 mb-1.5"
+            >
+              Test Scenario
+            </label>
+            <select
+              id="test-scenario"
+              value={selectedScenario}
+              onChange={(e) => setSelectedScenario(e.target.value as TestScenario)}
+              disabled={!isOperator}
+              className={cn(
+                "w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono",
+                "text-foreground focus:outline-none focus:ring-2 focus:ring-cyan-500/50",
+                "disabled:opacity-40 disabled:cursor-not-allowed"
+              )}
+            >
+              {SCENARIO_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {selectedScenario !== "AUTO" && (
+              <p className="mt-1.5 text-[10px] text-cyan-400/80 leading-relaxed">
+                Cenário <strong>{selectedScenario}</strong> será aplicado no próximo RUN TICK.
+                Não persiste após execução.
+              </p>
+            )}
+          </div>
+        )}
+
         {/* RUN TICK — botão crítico para executar pipeline manual */}
         <button
           onClick={() => setActiveAction("TICK")}
           disabled={!isOperator}
           title={
             isOperator
-              ? "Executa um ciclo manual de decisão (MCL → Brains → PM). Funciona em qualquer gate."
+              ? `Executa um ciclo manual de decisão (MCL → Brains → PM).${
+                  selectedScenario !== "AUTO" && isScenarioAllowed
+                    ? ` Cenário: ${selectedScenario}`
+                    : ""
+                } Funciona em qualquer gate.`
               : "Requer role Operator ou Admin"
           }
           className={cn(
@@ -192,6 +277,11 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
           )}
         >
           Run Tick
+          {selectedScenario !== "AUTO" && isScenarioAllowed && (
+            <span className="ml-2 text-[10px] font-mono opacity-80">
+              [{selectedScenario}]
+            </span>
+          )}
         </button>
 
         {/* KILL */}
@@ -305,7 +395,11 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
         onClose={() => setActiveAction(null)}
         onConfirm={() => handleConfirm("")}
         title="Executar Tick Manual"
-        description="Isto irá executar um ciclo completo de decisão: MCL_SNAPSHOT → BRAIN_INTENT → PM_DECISION. Os eventos aparecerão em /decisions/live."
+        description={
+          selectedScenario !== "AUTO" && isScenarioAllowed
+            ? `Isto irá executar um ciclo completo de decisão com cenário ${selectedScenario}: MCL_SNAPSHOT → BRAIN_INTENT → PM_DECISION. O cenário será descartado após execução.`
+            : "Isto irá executar um ciclo completo de decisão: MCL_SNAPSHOT → BRAIN_INTENT → PM_DECISION. Os eventos aparecerão em /decisions/live."
+        }
         confirmText="RUN TICK"
         requireReason={false}
         loading={loading}

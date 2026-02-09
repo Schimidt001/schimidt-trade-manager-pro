@@ -40,11 +40,18 @@ import {
   canSendCommands,
   setGlobalMode,
 } from "../config/gates";
+import {
+  getScenarioOverrides,
+  isScenarioAllowed,
+} from "../config/scenarioProfiles";
+import type { TestScenario, ScenarioOverrides } from "../config/scenarioProfiles";
 
 // ─── Tipos ──────────────────────────────────────────────────────
 
 export interface TickInput {
   symbols: string[];
+  /** Cenário de teste (G0/G1 only). AUTO = comportamento actual. */
+  scenario?: TestScenario;
 }
 
 export interface TickResult {
@@ -56,6 +63,8 @@ export interface TickResult {
   snapshots: MclSnapshot[];
   intents: BrainIntent[];
   decisions: PmDecision[];
+  /** Cenário de teste utilizado neste tick (null se AUTO ou G2+). */
+  scenario: TestScenario | null;
 }
 
 // ─── Default Risk Limits & Portfolio State (mock para Shadow) ───
@@ -181,10 +190,25 @@ function buildMockMclInput(
   symbol: string,
   eventId: string,
   correlationId: string,
-  timestamp: string
+  timestamp: string,
+  scenarioOverrides?: ScenarioOverrides | null
 ): MclInput {
   const basePrice = symbol.includes("BTC") ? 45000 : 1.08;
-  const profile = SYMBOL_PROFILES[symbol] ?? DEFAULT_PROFILE;
+  // Se há scenario overrides, usá-los em vez do perfil por símbolo.
+  // Isto permite forçar um contexto de mercado específico para validação.
+  const symbolProfile = SYMBOL_PROFILES[symbol] ?? DEFAULT_PROFILE;
+  const profile = scenarioOverrides
+    ? {
+        session: scenarioOverrides.session,
+        event_state: scenarioOverrides.event_state,
+        m15Override: scenarioOverrides.m15Override,
+        h1Override: scenarioOverrides.h1Override,
+        volume_ratio: scenarioOverrides.volume_ratio,
+        correlation_index: scenarioOverrides.correlation_index,
+        session_overlap: scenarioOverrides.session_overlap,
+        range_expansion: scenarioOverrides.range_expansion,
+      }
+    : symbolProfile;
 
   // ─── H1 bars: trending ou ranging ─────────────────────────────
   let h1Bars;
@@ -246,8 +270,8 @@ function buildMockMclInput(
       M15: m15Bars,
     },
     metrics: {
-      atr: basePrice * 0.008,
-      spread_bps: 5,
+      atr: basePrice * 0.008 * (scenarioOverrides?.atr_multiplier ?? 1.0),
+      spread_bps: scenarioOverrides?.spread_bps ?? 5,
       volume_ratio: profile.volume_ratio,
       correlation_index: profile.correlation_index,
       session_overlap: profile.session_overlap,
@@ -256,9 +280,9 @@ function buildMockMclInput(
     session: profile.session,
     event_state: profile.event_state,
     execution: {
-      health: ExecutionHealth.OK,
+      health: scenarioOverrides?.execution_health ?? ExecutionHealth.OK,
       latency_ms: 50,
-      last_spread_bps: 5,
+      last_spread_bps: scenarioOverrides?.spread_bps ?? 5,
       last_slippage_bps: 1,
     },
     global_mode: resolveGlobalMode(),
@@ -303,6 +327,19 @@ export async function runTick(input: TickInput): Promise<TickResult> {
   const opsState = getOperationalState();
   const isMock = opsState.mock_mode;
 
+  // ─── Scenario Controller (G0/G1 only) ─────────────────────────
+  // Resolve o cenário: se o gate permite e um cenário foi pedido,
+  // obter os overrides. Caso contrário, null (comportamento actual).
+  // O cenário NÃO persiste após o tick — é resolvido aqui e descartado.
+  const requestedScenario = input.scenario ?? "AUTO";
+  const scenarioActive =
+    requestedScenario !== "AUTO" && isScenarioAllowed(opsState.gate)
+      ? requestedScenario
+      : null;
+  const scenarioOverrides = scenarioActive
+    ? getScenarioOverrides(scenarioActive)
+    : null;
+
   const snapshots: MclSnapshot[] = [];
   const intents: BrainIntent[] = [];
   const decisions: PmDecision[] = [];
@@ -311,7 +348,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
   // ─── 1. MCL Snapshots ───────────────────────────────────────
   for (const symbol of input.symbols) {
     const mclEventId = newEventId();
-    const mclInput = buildMockMclInput(symbol, mclEventId, correlationId, timestamp);
+    const mclInput = buildMockMclInput(symbol, mclEventId, correlationId, timestamp, scenarioOverrides);
     const snapshot = computeMarketContext(mclInput);
     snapshots.push(snapshot);
 
@@ -328,7 +365,11 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       symbol: snapshot.symbol,
       brain_id: null,
       reason_code: isMock ? ReasonCode.MOCK_MCL_SNAPSHOT : snapshot.why.reason_code,
-      payload: { ...(snapshot as unknown as Record<string, unknown>), mock: isMock },
+      payload: {
+        ...(snapshot as unknown as Record<string, unknown>),
+        mock: isMock,
+        ...(scenarioActive ? { scenario: scenarioActive } : {}),
+      },
     });
 
     // ─── 2. Brains ──────────────────────────────────────────────
@@ -369,6 +410,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
             market_states: snapshot.market_states,
             metrics: snapshot.metrics,
             mock: isMock,
+            ...(scenarioActive ? { scenario: scenarioActive } : {}),
           },
         });
         continue;
@@ -386,7 +428,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
         symbol: intent.symbol,
         brain_id: intent.brain_id,
         reason_code: isMock ? ReasonCode.MOCK_BRAIN_INTENT : intent.why.reason_code,
-        payload: { ...(intent as unknown as Record<string, unknown>), mock: isMock },
+        payload: { ...(intent as unknown as Record<string, unknown>), mock: isMock, ...(scenarioActive ? { scenario: scenarioActive } : {}) },
       });
     }
   }
@@ -420,7 +462,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       symbol: intent.symbol,
       brain_id: intent.brain_id,
       reason_code: isMock ? ReasonCode.MOCK_PM_DECISION : decision.why.reason_code,
-      payload: { ...(decision as unknown as Record<string, unknown>), mock: isMock },
+      payload: { ...(decision as unknown as Record<string, unknown>), mock: isMock, ...(scenarioActive ? { scenario: scenarioActive } : {}) },
     });
   }
 
@@ -520,6 +562,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
         simulation_label: isAllowed
           ? `SIMULATOR: ${intent.intent_type} ${intent.symbol} (${intent.brain_id})`
           : `NOOP: ${decision.decision} ${intent.symbol} (${intent.brain_id})`,
+        ...(scenarioActive ? { scenario: scenarioActive } : {}),
       },
     };
 
@@ -540,5 +583,6 @@ export async function runTick(input: TickInput): Promise<TickResult> {
     snapshots,
     intents,
     decisions,
+    scenario: scenarioActive,
   };
 }

@@ -18,6 +18,12 @@ import { runTick } from "../services/decisionEngine";
 import { newCorrelationId } from "../utils/correlation";
 import { getExecutorStatus } from "../services/executorService";
 import { ReasonCode, REASON_CODE_CATALOG } from "@schimidt-brain/contracts";
+import {
+  isValidScenario,
+  isScenarioAllowed,
+  VALID_SCENARIOS,
+} from "../config/scenarioProfiles";
+import type { TestScenario } from "../config/scenarioProfiles";
 
 
 export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
@@ -356,7 +362,8 @@ export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
    * POST /ops/tick
    * Executa um ciclo manual de decisão.
    * Requer: Operator+
-   * Body: { symbols: ["EURUSD", "BTCUSD"] }
+   * Body: { symbols: ["EURUSD", "BTCUSD"], scenario?: "AUTO" }
+   * scenario é opcional e só aceite em G0/G1.
    */
   app.post("/ops/tick", async (request: FastifyRequest, reply: FastifyReply) => {
     if (!canOperate(request.userRole!)) {
@@ -366,7 +373,7 @@ export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
-    const body = request.body as { symbols?: string[] } | null;
+    const body = request.body as { symbols?: string[]; scenario?: string } | null;
     if (!body || !Array.isArray(body.symbols) || body.symbols.length === 0) {
       return reply.code(400).send({
         error: "Bad Request",
@@ -374,8 +381,29 @@ export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
       });
     }
 
+    // ─── Scenario Controller: validar cenário se fornecido ─────────
+    let scenario: TestScenario | undefined;
+    if (body.scenario && body.scenario !== "AUTO") {
+      // Validar que o cenário é válido
+      if (!isValidScenario(body.scenario)) {
+        return reply.code(400).send({
+          error: "Bad Request",
+          message: `Cenário inválido: ${body.scenario}. Valores aceites: ${VALID_SCENARIOS.join(", ")}`,
+        });
+      }
+      // Validar que o gate permite cenários
+      const currentGate = getOperationalState().gate;
+      if (!isScenarioAllowed(currentGate)) {
+        return reply.code(409).send({
+          error: "Conflict",
+          message: `Cenários de teste só estão disponíveis em G0/G1. Gate actual: ${currentGate}`,
+        });
+      }
+      scenario = body.scenario as TestScenario;
+    }
+
     try {
-      const result = await runTick({ symbols: body.symbols });
+      const result = await runTick({ symbols: body.symbols, scenario });
 
       // Entrega A: Armazenar resultado do tick para validação de gate promotion
       setLastTickResult({
@@ -390,7 +418,7 @@ export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
         actor_role: request.userRole ?? "unknown",
         action: "MANUAL_ACTION",
         resource: "ops.tick",
-        reason: `Tick manual executado para ${body.symbols.join(", ")}`,
+        reason: `Tick manual executado para ${body.symbols.join(", ")}${result.scenario ? ` [cenário: ${result.scenario}]` : ""}`,
         before: null,
         after: {
           correlation_id: result.correlation_id,
@@ -398,6 +426,7 @@ export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
           gate: result.gate,
           commands_sent: result.commands_sent,
           mock_mode: getOperationalState().mock_mode,
+          scenario: result.scenario,
         },
         correlation_id: result.correlation_id,
       });
@@ -409,6 +438,7 @@ export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
         commands_sent: result.commands_sent,
         events_persisted: result.events_persisted,
         mock_mode: getOperationalState().mock_mode,
+        scenario: result.scenario,
         summary: {
           snapshots: result.snapshots.length,
           intents: result.intents.length,
@@ -422,5 +452,21 @@ export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
         message: "Erro ao executar ciclo de decisão",
       });
     }
+  });
+
+  /**
+   * GET /ops/scenarios
+   * Retorna cenários de teste disponíveis e se o gate actual permite.
+   * Requer: Viewer+
+   */
+  app.get("/ops/scenarios", async (_request, _reply) => {
+    const state = getOperationalState();
+    const allowed = isScenarioAllowed(state.gate);
+
+    return {
+      gate: state.gate,
+      scenarios_allowed: allowed,
+      scenarios: allowed ? [...VALID_SCENARIOS] : ["AUTO"],
+    };
   });
 }

@@ -207,6 +207,8 @@ function extractKeyData(eventType: string, payload: Record<string, unknown>): Re
         result.why = payload.why;
       }
       result.global_mode = payload.global_mode ?? null;
+      // Scenario Controller: registar cenário de teste se presente
+      if (payload.scenario) result.scenario = payload.scenario;
       break;
     }
     case "BRAIN_INTENT": {
@@ -224,6 +226,8 @@ function extractKeyData(eventType: string, payload: Record<string, unknown>): Re
       if (payload.why) {
         result.why = payload.why;
       }
+      // Scenario Controller: registar cenário de teste se presente
+      if (payload.scenario) result.scenario = payload.scenario;
       break;
     }
     case "BRAIN_SKIP": {
@@ -234,6 +238,8 @@ function extractKeyData(eventType: string, payload: Record<string, unknown>): Re
       if (payload.why) {
         result.why = payload.why;
       }
+      // Scenario Controller: registar cenário de teste se presente
+      if (payload.scenario) result.scenario = payload.scenario;
       break;
     }
     case "PM_DECISION": {
@@ -247,6 +253,8 @@ function extractKeyData(eventType: string, payload: Record<string, unknown>): Re
       if (payload.why) {
         result.why = payload.why;
       }
+      // Scenario Controller: registar cenário de teste se presente
+      if (payload.scenario) result.scenario = payload.scenario;
       break;
     }
     case "EHM_ACTION": {
@@ -292,7 +300,8 @@ function generateEventNarrative(
       const volatility = states?.volatility ?? "—";
       const session = states?.session ?? "—";
       const mode = payload.global_mode ?? "—";
-      return `MCL: ${structure} / ${liquidity} (vol: ${volatility}, sessão: ${session}, modo: ${mode})`;
+      const scenarioTag = payload.scenario ? ` [cenário: ${payload.scenario}]` : "";
+      return `MCL: ${structure} / ${liquidity} (vol: ${volatility}, sessão: ${session}, modo: ${mode})${scenarioTag}`;
     }
     case "BRAIN_INTENT": {
       const intentType = payload.intent_type ?? "UNKNOWN";
@@ -676,23 +685,35 @@ export function buildDaySummary(
     outcomeExplanation = "Dia com execução parcial — nem todos os componentes do pipeline geraram eventos.";
   }
 
+  // Detectar cenários de teste usados neste dia (Scenario Controller)
+  const scenariosUsed = new Set<string>();
+  for (const ev of events) {
+    const p = (typeof ev.payload === "string" ? JSON.parse(ev.payload) : ev.payload) as Record<string, unknown>;
+    if (p.scenario && typeof p.scenario === "string") {
+      scenariosUsed.add(p.scenario);
+    }
+  }
+  const scenarioSuffix = scenariosUsed.size > 0
+    ? ` [cenários: ${Array.from(scenariosUsed).join(", ")}]`
+    : "";
+
   // Gerar título narrativo
   let title: string;
   switch (outcome) {
     case "TRADE_EXECUTED":
-      title = `Dia operacional — ${pmApprovals.length} trade(s) executado(s)`;
+      title = `Dia operacional — ${pmApprovals.length} trade(s) executado(s)${scenarioSuffix}`;
       break;
     case "NO_TRADE":
-      title = "Dia sem operação — pipeline executou mas sem edge";
+      title = `Dia sem operação — pipeline executou mas sem edge${scenarioSuffix}`;
       break;
     case "ERROR":
-      title = "Dia com erros — verificar pipeline";
+      title = `Dia com erros — verificar pipeline${scenarioSuffix}`;
       break;
     case "EMPTY":
       title = "Dia vazio — sistema não executou";
       break;
     case "PARTIAL":
-      title = "Dia parcial — execução incompleta";
+      title = `Dia parcial — execução incompleta${scenarioSuffix}`;
       break;
   }
 
