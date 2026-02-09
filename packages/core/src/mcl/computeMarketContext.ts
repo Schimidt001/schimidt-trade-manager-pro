@@ -294,6 +294,7 @@ export function computeMarketContext(input: MclInput): MclSnapshot {
       spread_bps: input.metrics.spread_bps,
       volume_ratio: input.metrics.volume_ratio,
       correlation_index: input.metrics.correlation_index,
+      last_close: referencePrice,
     },
     execution_state: executionState,
     why: {

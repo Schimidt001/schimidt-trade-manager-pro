@@ -400,11 +400,10 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       component: "MCL",
       symbol: snapshot.symbol,
       brain_id: null,
-      reason_code: isSymbolMock ? ReasonCode.MOCK_MCL_SNAPSHOT : snapshot.why.reason_code,
+      reason_code: snapshot.why.reason_code,
       payload: {
         ...(snapshot as unknown as Record<string, unknown>),
-        mock: isSymbolMock,
-        data_source: isSymbolMock ? "MOCK" : "CTRADER",
+        data_source: useRealData ? "CTRADER" : "MOCK",
         ...(scenarioActive ? { scenario: scenarioActive } : {}),
       },
     });
@@ -432,7 +431,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
           component: brainToComponent(brainId),
           symbol,
           brain_id: brainId,
-          reason_code: isSymbolMock ? ReasonCode.MOCK_BRAIN_SKIP : ReasonCode.MCL_STRUCTURE_CHANGE,
+          reason_code: ReasonCode.MCL_STRUCTURE_CHANGE,
           payload: {
             event_id: brainEventId,
             correlation_id: correlationId,
@@ -462,11 +461,10 @@ export async function runTick(input: TickInput): Promise<TickResult> {
         component: brainToComponent(brainId),
         symbol: intent.symbol,
         brain_id: intent.brain_id,
-        reason_code: isSymbolMock ? ReasonCode.MOCK_BRAIN_INTENT : intent.why.reason_code,
-        payload: {
-          ...(intent as unknown as Record<string, unknown>),
-          mock: isSymbolMock,
-          data_source: isSymbolMock ? "MOCK" : "CTRADER",
+        reason_code: intent.why.reason_code,
+          payload: {
+            ...(intent as unknown as Record<string, unknown>),
+            data_source: useRealData ? "CTRADER" : "MOCK",
           ...(scenarioActive ? { scenario: scenarioActive } : {}),
         },
       });
@@ -499,11 +497,10 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       component: "PM",
       symbol: intent.symbol,
       brain_id: intent.brain_id,
-      reason_code: isIntentMock ? ReasonCode.MOCK_PM_DECISION : decision.why.reason_code,
+      reason_code: decision.why.reason_code,
       payload: {
         ...(decision as unknown as Record<string, unknown>),
-        mock: isIntentMock,
-        data_source: isIntentMock ? "MOCK" : "CTRADER",
+        data_source: useRealData ? "CTRADER" : "MOCK",
         ...(scenarioActive ? { scenario: scenarioActive } : {}),
       },
     });
