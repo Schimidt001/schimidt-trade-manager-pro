@@ -357,15 +357,55 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
         </button>
       </div>
 
-      {/* Confirm Action Modal */}
-      {activeAction && (
-        <ConfirmActionModal
-          action={activeAction}
-          onConfirm={handleConfirm}
-          onCancel={() => setActiveAction(null)}
-          loading={loading}
-        />
-      )}
+      {/* ARM Modal */}
+      <ConfirmActionModal
+        open={activeAction === "ARM"}
+        onClose={() => setActiveAction(null)}
+        onConfirm={handleConfirm}
+        title="Armar Sistema"
+        description="ARM apenas AUTORIZA o sistema a executar comandos quando o tick ou scheduler for acionado. ARM não executa trades diretamente. Certifique-se de que todas as condições estão verificadas."
+        confirmText="ARM"
+        requireReason
+        loading={loading}
+      />
+      {/* DISARM Modal */}
+      <ConfirmActionModal
+        open={activeAction === "DISARM"}
+        onClose={() => setActiveAction(null)}
+        onConfirm={handleConfirm}
+        title="Desarmar Sistema"
+        description="DISARM revoga a autorização de execução. O sistema deixará de autorizar novos comandos ao executor. Posições abertas não serão afetadas."
+        confirmText="DISARM"
+        requireReason
+        loading={loading}
+      />
+      {/* KILL Modal */}
+      <ConfirmActionModal
+        open={activeAction === "KILL"}
+        onClose={() => setActiveAction(null)}
+        onConfirm={handleConfirm}
+        title="KILL Switch"
+        description="ATENÇÃO: Isto irá ativar RISK_OFF e DISARM imediatamente. Todas as autorizações serão revogadas e o sistema entrará em modo defensivo. Use apenas em emergência."
+        confirmText="KILL"
+        requireReason
+        variant="danger"
+        loading={loading}
+      />
+      {/* TICK Modal — sem reason obrigatório */}
+      <ConfirmActionModal
+        open={activeAction === "TICK"}
+        onClose={() => setActiveAction(null)}
+        onConfirm={() => handleConfirm("")}
+        title="Executar Tick Manual"
+        description={
+          selectedScenario !== "AUTO" && isScenarioAllowed
+            ? `Isto irá executar um ciclo completo de decisão com cenário ${selectedScenario}: MCL_SNAPSHOT → BRAIN_INTENT → PM_DECISION. O cenário será descartado após execução.`
+            : "Isto irá executar um ciclo completo de decisão: MCL_SNAPSHOT → BRAIN_INTENT → PM_DECISION. Os eventos aparecerão em /decisions/live."
+        }
+        confirmText="RUN TICK"
+        requireReason={false}
+        loading={loading}
+      />
     </div>
   );
 }
