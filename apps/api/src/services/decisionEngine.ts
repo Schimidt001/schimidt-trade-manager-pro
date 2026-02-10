@@ -693,7 +693,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       payload: {
         ...(snapshot as unknown as Record<string, unknown>),
         data_source: useRealData ? "CTRADER" : "MOCK",
-        news_provider: useRealData ? "FMP" : "MOCK",
+        news_provider: useRealData ? (calendarResponse?.provider_used ?? "UNKNOWN") : "MOCK",
         news_provider_state: newsProviderDown ? "DOWN" : (calendarResponse?.provider_state ?? "UNKNOWN"),
         event_windows_count: eventWindows.length,
         ...(scenarioActive ? { scenario: scenarioActive } : {}),
