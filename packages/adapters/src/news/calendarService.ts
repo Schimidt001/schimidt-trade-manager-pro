@@ -3,13 +3,13 @@
 // Interface principal consumida pela API (Agente 4)
 //
 // Responsabilidades:
-// - getDayCalendar: FMP como provider primário (REAL, free tier)
+// - getDayCalendar: Trading Economics como provider primário (REAL, free tier com guest:guest)
 // - getNextHighImpactEvent: próximo evento HIGH impact
 // - computeEventWindows: janelas no-trade para eventos HIGH
 //
 // Regras institucionais:
-// - Provider primário: FMP (Financial Modeling Prep)
-// - Se FMP falhar → provider DOWN (sem fallback para scraping)
+// - Provider primário: Trading Economics (guest:guest ou TE_API_KEY)
+// - Se TE falhar → provider DOWN (sem fallback para scraping)
 // - Se provider != OK → emitir PROVIDER_STATE_CHANGE
 // - Nunca voltar para mock
 // - Sem dados = sem operar (política institucional)
@@ -22,7 +22,7 @@ import type {
   CalendarServiceResponse,
   DataSource,
 } from "./types";
-import { fetchCalendarDay as fetchFmp } from "./fmp";
+import { fetchCalendarDay as fetchTe, healthCheck as teHealthCheck } from "./tradingEconomics";
 import { evaluateProviderHealth } from "./providerHealth";
 
 // ─── Constantes ─────────────────────────────────────────────
@@ -59,11 +59,11 @@ function getDateForTimezone(date: Date, _timezone: string): Date {
 // ─── getDayCalendar ─────────────────────────────────────────
 
 /**
- * Obtém o calendário econômico do dia usando FMP como provider primário.
+ * Obtém o calendário econômico do dia usando Trading Economics como provider primário.
  *
  * Fluxo:
- * 1. Tenta FMP (Financial Modeling Prep) — provider primário
- * 2. Se FMP falhar → retorna provider DOWN (sem fallback para scraping)
+ * 1. Tenta Trading Economics (guest:guest ou TE_API_KEY) — provider primário
+ * 2. Se TE falhar → retorna provider DOWN (sem fallback para scraping)
  * 3. Avalia saúde do provider usado
  * 4. Retorna eventos + estado do provider
  *
@@ -82,32 +82,28 @@ export async function getDayCalendar(
 ): Promise<CalendarServiceResponse> {
   const targetDate = getDateForTimezone(date, timezone);
 
-  const fmpApiKey = process.env.FMP_API_KEY ?? "";
+  const teApiKey = process.env.TRADING_ECONOMICS_API_KEY ?? "";
 
   let events: EconomicEventNormalized[] | null = null;
-  const providerUsed: DataSource = "FMP";
-  let fmpError: Error | null = null;
+  const providerUsed: DataSource = "TE";
+  let teError: Error | null = null;
 
-  // ─── Tentativa: FMP (provider primário) ───────────────────
-  if (fmpApiKey.length > 0) {
-    try {
-      events = await fetchFmp(targetDate, fmpApiKey);
-    } catch (error: unknown) {
-      fmpError = error instanceof Error ? error : new Error(String(error));
-      events = null;
-    }
-  } else {
-    fmpError = new Error("[FMP] FMP_API_KEY não configurada");
+  // ─── Tentativa: Trading Economics (provider primário) ─────
+  try {
+    events = await fetchTe(targetDate, teApiKey);
+  } catch (error: unknown) {
+    teError = error instanceof Error ? error : new Error(String(error));
+    events = null;
   }
 
-  // ─── FMP falhou → DOWN (sem fallback) ─────────────────────
+  // ─── TE falhou → DOWN (sem fallback) ──────────────────────
   if (events === null) {
     return {
       events: [],
       provider_state: "DOWN",
       provider_used: providerUsed,
       reason_code: ReasonCode.PROV_DISCONNECTED,
-      reason: `FMP provider falhou: ${fmpError?.message ?? "Erro desconhecido"}`,
+      reason: `Trading Economics provider falhou: ${teError?.message ?? "Erro desconhecido"}`,
     };
   }
 
@@ -207,4 +203,21 @@ export function computeEventWindows(
   );
 
   return windows;
+}
+
+// ─── healthCheck ────────────────────────────────────────────
+
+/**
+ * Verifica se o provider Trading Economics está acessível.
+ * Usado pela API para monitorar saúde do provider.
+ *
+ * @returns Status do provider
+ */
+export async function healthCheck(): Promise<{
+  healthy: boolean;
+  reason: string;
+  message: string;
+}> {
+  const teApiKey = process.env.TRADING_ECONOMICS_API_KEY ?? "";
+  return teHealthCheck(teApiKey);
 }
