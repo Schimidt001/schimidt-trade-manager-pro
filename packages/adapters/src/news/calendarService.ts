@@ -3,14 +3,16 @@
 // Interface principal consumida pela API (Agente 4)
 //
 // Responsabilidades:
-// - getDayCalendar: TE primário, Finnhub fallback
+// - getDayCalendar: FMP como provider primário (REAL, free tier)
 // - getNextHighImpactEvent: próximo evento HIGH impact
 // - computeEventWindows: janelas no-trade para eventos HIGH
 //
 // Regras institucionais:
-// - Se TE falhar → tenta Finnhub
-// - Se ambos falharem → provider DOWN
+// - Provider primário: FMP (Financial Modeling Prep)
+// - Se FMP falhar → provider DOWN (sem fallback para scraping)
 // - Se provider != OK → emitir PROVIDER_STATE_CHANGE
+// - Nunca voltar para mock
+// - Sem dados = sem operar (política institucional)
 // ═════════════════════════════════════════════════════════════
 
 import { ReasonCode } from "@schimidt-brain/contracts";
@@ -20,8 +22,7 @@ import type {
   CalendarServiceResponse,
   DataSource,
 } from "./types";
-import { fetchCalendarDay as fetchTe } from "./tradingEconomics";
-import { fetchCalendarDay as fetchFinnhub } from "./finnhub";
+import { fetchCalendarDay as fetchFmp } from "./fmp";
 import { evaluateProviderHealth } from "./providerHealth";
 
 // ─── Constantes ─────────────────────────────────────────────
@@ -58,14 +59,18 @@ function getDateForTimezone(date: Date, _timezone: string): Date {
 // ─── getDayCalendar ─────────────────────────────────────────
 
 /**
- * Obtém o calendário econômico do dia com fallback automático.
+ * Obtém o calendário econômico do dia usando FMP como provider primário.
  *
  * Fluxo:
- * 1. Tenta Trading Economics (provider primário)
- * 2. Se TE falhar → tenta Finnhub (fallback)
- * 3. Se ambos falharem → retorna provider DOWN
- * 4. Avalia saúde do provider usado
- * 5. Retorna eventos + estado do provider
+ * 1. Tenta FMP (Financial Modeling Prep) — provider primário
+ * 2. Se FMP falhar → retorna provider DOWN (sem fallback para scraping)
+ * 3. Avalia saúde do provider usado
+ * 4. Retorna eventos + estado do provider
+ *
+ * Política institucional:
+ * - Sem dados = sem operar
+ * - Nunca voltar para mock
+ * - Degradação elegante: DEGRADED/DOWN bem reportado
  *
  * @param date - Data alvo (Date object)
  * @param timezone - Offset timezone (default: "-03:00")
@@ -77,55 +82,32 @@ export async function getDayCalendar(
 ): Promise<CalendarServiceResponse> {
   const targetDate = getDateForTimezone(date, timezone);
 
-  const teApiKey = process.env.TRADING_ECONOMICS_API_KEY ?? "";
-  const finnhubApiKey = process.env.FINNHUB_API_KEY ?? "";
+  const fmpApiKey = process.env.FMP_API_KEY ?? "";
 
   let events: EconomicEventNormalized[] | null = null;
-  let providerUsed: DataSource = "TE";
-  let teError: Error | null = null;
-  let finnhubError: Error | null = null;
+  const providerUsed: DataSource = "FMP";
+  let fmpError: Error | null = null;
 
-  // ─── Tentativa 1: Trading Economics (primário) ────────────
-  if (teApiKey.length > 0) {
+  // ─── Tentativa: FMP (provider primário) ───────────────────
+  if (fmpApiKey.length > 0) {
     try {
-      events = await fetchTe(targetDate, teApiKey);
-      providerUsed = "TE";
+      events = await fetchFmp(targetDate, fmpApiKey);
     } catch (error: unknown) {
-      teError = error instanceof Error ? error : new Error(String(error));
+      fmpError = error instanceof Error ? error : new Error(String(error));
       events = null;
     }
   } else {
-    teError = new Error("[TE] TRADING_ECONOMICS_API_KEY não configurada");
+    fmpError = new Error("[FMP] FMP_API_KEY não configurada");
   }
 
-  // ─── Tentativa 2: Finnhub (fallback) ─────────────────────
+  // ─── FMP falhou → DOWN (sem fallback) ─────────────────────
   if (events === null) {
-    if (finnhubApiKey.length > 0) {
-      try {
-        events = await fetchFinnhub(targetDate, finnhubApiKey);
-        providerUsed = "FINNHUB";
-      } catch (error: unknown) {
-        finnhubError =
-          error instanceof Error ? error : new Error(String(error));
-        events = null;
-      }
-    } else {
-      finnhubError = new Error("[FINNHUB] FINNHUB_API_KEY não configurada");
-    }
-  }
-
-  // ─── Ambos falharam → DOWN ────────────────────────────────
-  if (events === null) {
-    const combinedError = new Error(
-      `Ambos providers falharam. TE: ${teError?.message ?? "N/A"} | Finnhub: ${finnhubError?.message ?? "N/A"}`,
-    );
-
     return {
       events: [],
       provider_state: "DOWN",
       provider_used: providerUsed,
       reason_code: ReasonCode.PROV_DISCONNECTED,
-      reason: combinedError.message,
+      reason: `FMP provider falhou: ${fmpError?.message ?? "Erro desconhecido"}`,
     };
   }
 
@@ -138,17 +120,7 @@ export async function getDayCalendar(
     provider_used: providerUsed,
   };
 
-  // Se usou fallback, registrar que houve failover
-  if (providerUsed === "FINNHUB" && teError) {
-    response.reason_code = ReasonCode.PROV_STATE_CHANGE;
-    response.reason = `Failover para Finnhub: ${teError.message}`;
-
-    // Se o fallback também está degradado, manter o reason_code do health
-    if (health.state !== "OK") {
-      response.reason_code = health.reason_code;
-      response.reason = `Failover para Finnhub + ${health.reason}`;
-    }
-  } else if (health.state !== "OK") {
+  if (health.state !== "OK") {
     response.reason_code = health.reason_code;
     response.reason = health.reason;
   }
