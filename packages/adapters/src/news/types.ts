@@ -13,14 +13,15 @@ import type { ReasonCodeType } from "@schimidt-brain/contracts";
 export type ImpactLevel = "HIGH" | "MEDIUM" | "LOW";
 
 // ─── Data Source ────────────────────────────────────────────
-
 /**
  * Fonte de dados do evento.
+ *
+ * FMP — Financial Modeling Prep (provider primário, free tier)
+ * TE  — Trading Economics (legacy, mantido para compatibilidade)
+ * FINNHUB — Finnhub (legacy, mantido para compatibilidade)
  */
-export type DataSource = "TE" | "FINNHUB";
-
+export type DataSource = "FMP" | "TE" | "FINNHUB";
 // ─── Provider State ─────────────────────────────────────────
-
 /**
  * Estado de saúde do provider de notícias.
  *
@@ -29,9 +30,7 @@ export type DataSource = "TE" | "FINNHUB";
  * DOWN     — fetch falhou em ambos os providers
  */
 export type ProviderState = "OK" | "DEGRADED" | "DOWN";
-
 // ─── Event Window Policy ────────────────────────────────────
-
 /**
  * Política de trading durante janela de evento.
  *
@@ -40,55 +39,52 @@ export type ProviderState = "OK" | "DEGRADED" | "DOWN";
  */
 export type EventWindowPolicy = "NO_TRADE_SENSITIVE" | "CONDITIONAL_ONLY";
 
-// ─── Normalized Economic Event ──────────────────────────────
+// ─── Impact Source ──────────────────────────────────────────
+/**
+ * Origem do nível de impacto.
+ *
+ * PROVIDER — impacto veio diretamente do provider (campo impact)
+ * INFERRED — impacto inferido por mapeamento de categoria → MEDIUM
+ */
+export type ImpactSource = "PROVIDER" | "INFERRED";
 
+// ─── Normalized Economic Event ──────────────────────────────
 /**
  * Evento econômico normalizado.
- * Formato interno único independente da fonte (TE ou Finnhub).
+ * Formato interno único independente da fonte (FMP, TE ou Finnhub).
  *
- * O campo `id` é um hash SHA-1 determinístico de (currency + timestamp + title),
+ * O campo `id` é um hash SHA-1 determinístico de (provider + country + timestamp + title),
  * garantindo idempotência e deduplicação.
  */
 export interface EconomicEventNormalized {
-  /** Hash determinístico SHA-1(currency + timestamp + title) */
+  /** Hash determinístico SHA-1(provider + country + timestamp + title) */
   id: string;
-
   /** Timestamp ISO 8601 do evento (com offset UTC-3 quando normalizado) */
   timestamp: string;
-
-  /** País de origem do indicador (ex: "United States", "Brazil") */
+  /** País de origem do indicador (ex: "US", "JP", "BR") */
   country: string;
-
   /** Moeda afetada (ex: "USD", "EUR", "JPY") */
   currency: string;
-
   /** Título/nome do evento econômico */
   title: string;
-
   /** Nível de impacto: HIGH | MEDIUM | LOW */
   impact: ImpactLevel;
-
+  /** Origem do nível de impacto: PROVIDER | INFERRED */
+  impact_source: ImpactSource;
   /** Valor anterior do indicador (null se indisponível) */
   previous: number | null;
-
   /** Previsão/consenso do mercado (null se indisponível) */
   forecast: number | null;
-
   /** Valor real publicado (null se ainda não divulgado) */
   actual: number | null;
-
-  /** Fonte de dados: TE (Trading Economics) ou FINNHUB */
+  /** Fonte de dados: FMP | TE | FINNHUB */
   source: DataSource;
-
   /** Timestamp ISO 8601 da última atualização */
   updated_at: string;
-
   /** Dados brutos originais da API (opcional, para debug/auditoria) */
   raw?: unknown;
 }
-
 // ─── Event Window ───────────────────────────────────────────
-
 /**
  * Janela temporal de restrição de trading em torno de um evento.
  *
@@ -99,22 +95,16 @@ export interface EconomicEventNormalized {
 export interface EventWindow {
   /** Início da janela (ISO 8601) */
   start: string;
-
   /** Fim da janela (ISO 8601) */
   end: string;
-
   /** Política de trading durante esta janela */
   policy: EventWindowPolicy;
-
   /** Moeda afetada pelo evento */
   currency: string;
-
   /** Nível de impacto do evento que gerou esta janela */
   impact: ImpactLevel;
 }
-
 // ─── Provider Health Result ─────────────────────────────────
-
 /**
  * Resultado da avaliação de saúde do provider.
  * Usado para emitir PROVIDER_STATE_CHANGE via contracts.
@@ -122,16 +112,12 @@ export interface EventWindow {
 export interface ProviderHealthResult {
   /** Estado atual do provider */
   state: ProviderState;
-
   /** Código de razão canônico (do catálogo de contracts) */
   reason_code: ReasonCodeType;
-
   /** Mensagem humana explicando o estado */
   reason: string;
 }
-
 // ─── Calendar Service Response ──────────────────────────────
-
 /**
  * Resposta completa do serviço de calendário.
  * Interface principal consumida pela API (Agente 4).
@@ -139,22 +125,16 @@ export interface ProviderHealthResult {
 export interface CalendarServiceResponse {
   /** Lista de eventos econômicos normalizados do dia */
   events: EconomicEventNormalized[];
-
   /** Estado de saúde do provider utilizado */
   provider_state: ProviderState;
-
-  /** Provider que forneceu os dados: "TE" ou "FINNHUB" */
+  /** Provider que forneceu os dados */
   provider_used: DataSource;
-
   /** Código de razão (presente se provider != OK) */
   reason_code?: ReasonCodeType;
-
   /** Mensagem de razão (presente se provider != OK) */
   reason?: string;
 }
-
 // ─── Raw API Response Types ─────────────────────────────────
-
 /**
  * Formato bruto de um evento retornado pela API Trading Economics.
  */
@@ -182,7 +162,6 @@ export interface TradingEconomicsRawEvent {
   Ticker?: string;
   Symbol?: string;
 }
-
 /**
  * Formato bruto de um evento retornado pela API Finnhub.
  */
@@ -196,10 +175,24 @@ export interface FinnhubRawEvent {
   time: string;
   unit: string;
 }
-
 /**
  * Resposta bruta da API Finnhub.
  */
 export interface FinnhubCalendarResponse {
   economicCalendar: FinnhubRawEvent[];
+}
+/**
+ * Formato bruto de um evento retornado pela API FMP.
+ */
+export interface FmpRawEvent {
+  date: string;
+  country: string;
+  event: string;
+  currency: string;
+  previous: number | null;
+  estimate: number | null;
+  actual: number | null;
+  change: number | null;
+  impact: string;
+  changePercentage: number | null;
 }
