@@ -39,9 +39,11 @@ export interface EnvConfig {
   MARKET_DATA_TIMEOUT_MS: number;
 
   // ─── News Provider (Calendar) ─────────────────────────────
-  /** Trading Economics API Key (opcional — se ausente, tenta Finnhub) */
+  /** FMP API Key (Financial Modeling Prep — provider primário) */
+  FMP_API_KEY: string;
+  /** Trading Economics API Key (legacy — mantido para compatibilidade) */
   TRADING_ECONOMICS_API_KEY: string;
-  /** Finnhub API Key (opcional — fallback do TE) */
+  /** Finnhub API Key (legacy — mantido para compatibilidade) */
   FINNHUB_API_KEY: string;
 }
 
@@ -74,7 +76,9 @@ export function loadEnv(): EnvConfig {
     MARKET_DATA_PROVIDER: process.env.MARKET_DATA_PROVIDER ?? "CTRADER",
     MARKET_DATA_TIMEOUT_MS: parseInt(process.env.MARKET_DATA_TIMEOUT_MS ?? "5000", 10),
 
-    // News Provider (opcionais — calendarService lê direto de process.env)
+    // News Provider — FMP é o primário
+    FMP_API_KEY: process.env.FMP_API_KEY ?? "",
+    // Legacy providers (calendarService lê direto de process.env)
     TRADING_ECONOMICS_API_KEY: process.env.TRADING_ECONOMICS_API_KEY ?? "",
     FINNHUB_API_KEY: process.env.FINNHUB_API_KEY ?? "",
   };
