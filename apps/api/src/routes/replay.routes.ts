@@ -17,6 +17,7 @@ import {
   listReplayDaysWithCounts,
   getReplayDayFull,
   getReplayDay,
+  deleteReplayDay,
 } from "@schimidt-brain/db";
 import type { ReplayDayStatus } from "@schimidt-brain/db";
 import { buildReplayDayNarrative } from "../services/replayNarrativeService";
@@ -231,6 +232,57 @@ export async function registerReplayRoutes(app: FastifyInstance): Promise<void> 
       return reply.code(500).send({
         error: "Internal Server Error",
         message: "Erro ao agregar replay days",
+      });
+    }
+  });
+
+  /**
+   * DELETE /replay/:date
+   * Deleta um dia de replay e todos os seus eventos associados.
+   * Remove: replay_day, ledger_events e audit_logs do dia.
+   * Requer: Operator+
+   */
+  app.delete("/replay/:date", async (request: FastifyRequest, reply: FastifyReply) => {
+    if (!canOperate(request.userRole!)) {
+      return reply.code(403).send({
+        error: "Forbidden",
+        message: "Requer role Operator ou Admin para deletar replay",
+        reason_code: "INSUFFICIENT_PERMISSIONS",
+      });
+    }
+
+    const params = request.params as { date: string };
+
+    // Validar formato de data
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(params.date)) {
+      return reply.code(400).send({
+        error: "Bad Request",
+        message: "Formato de data inválido. Use YYYY-MM-DD.",
+        reason_code: "INVALID_DATE_FORMAT",
+      });
+    }
+
+    try {
+      const deleted = await deleteReplayDay(params.date);
+
+      if (!deleted) {
+        return reply.code(404).send({
+          error: "Not Found",
+          message: `Dia ${params.date} não encontrado no replay.`,
+          reason_code: "REPLAY_DAY_NOT_FOUND",
+        });
+      }
+
+      return {
+        status: "deleted",
+        date: params.date,
+        message: `Replay do dia ${params.date} deletado com sucesso (incluindo eventos e audit logs).`,
+      };
+    } catch (err) {
+      request.log.error(err, "Erro ao deletar replay day");
+      return reply.code(500).send({
+        error: "Internal Server Error",
+        message: "Erro ao deletar replay day",
       });
     }
   });

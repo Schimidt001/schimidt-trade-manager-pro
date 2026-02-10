@@ -56,6 +56,7 @@ export {
   upsertReplayDay,
   listReplayDays,
   getReplayDay,
+  deleteReplayDay,
 } from "./repos/replayRepo";
 
 // ─── Queries ────────────────────────────────────────────────────

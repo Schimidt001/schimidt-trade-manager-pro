@@ -131,3 +131,69 @@ export async function getReplayDay(date: string): Promise<ReplayDayDetail | null
     auditLogs: auditsResult.rows,
   };
 }
+
+/**
+ * Deleta um dia de replay e todos os seus eventos associados.
+ * Remove:
+ * - Entrada em replay_days
+ * - Todos os ledger_events do dia
+ * - Todos os audit_logs do dia
+ *
+ * Retorna true se o dia foi deletado, false se não existia.
+ */
+export async function deleteReplayDay(date: string): Promise<boolean> {
+  const pool = getPool();
+
+  // Validar formato de data
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new Error("Formato de data inválido. Use YYYY-MM-DD.");
+  }
+
+  // Usar transação para garantir atomicidade
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
+
+    // 1. Verificar se o dia existe
+    const checkResult = await client.query(
+      `SELECT 1 FROM replay_days WHERE date = $1`,
+      [date]
+    );
+
+    if (checkResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return false; // Dia não existe
+    }
+
+    // 2. Deletar ledger events do dia
+    const dayStart = `${date}T00:00:00Z`;
+    const dayEnd = `${date}T23:59:59.999999Z`;
+
+    await client.query(
+      `DELETE FROM ledger_events
+       WHERE timestamp >= $1 AND timestamp <= $2`,
+      [dayStart, dayEnd]
+    );
+
+    // 3. Deletar audit logs do dia
+    await client.query(
+      `DELETE FROM audit_logs
+       WHERE timestamp >= $1 AND timestamp <= $2`,
+      [dayStart, dayEnd]
+    );
+
+    // 4. Deletar entrada em replay_days
+    await client.query(
+      `DELETE FROM replay_days WHERE date = $1`,
+      [date]
+    );
+
+    await client.query("COMMIT");
+    return true;
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
+  }
+}

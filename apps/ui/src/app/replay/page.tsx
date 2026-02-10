@@ -127,7 +127,14 @@ export default function ReplayPage() {
 
       {/* Day list */}
       {(isLoading || hasDays) && (
-        <ReplayDayList days={data?.days || []} loading={isLoading} />
+        <ReplayDayList 
+          days={data?.days || []} 
+          loading={isLoading}
+          onDayDeleted={() => {
+            queryClient.invalidateQueries({ queryKey: ["replay-days"] });
+            refetch();
+          }}
+        />
       )}
     </div>
   );
