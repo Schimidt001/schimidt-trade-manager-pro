@@ -1,14 +1,16 @@
 // ═════════════════════════════════════════════════════════════
 // @schimidt-brain/adapters — Normalização de Eventos
-// Converte dados brutos de TE e Finnhub para formato interno
+// Converte dados brutos de FMP, TE e Finnhub para formato interno
 // ═════════════════════════════════════════════════════════════
 
 import { createHash } from "crypto";
 import type {
   EconomicEventNormalized,
   ImpactLevel,
+  ImpactSource,
   TradingEconomicsRawEvent,
   FinnhubRawEvent,
+  FmpRawEvent,
 } from "./types";
 
 // ─── Constantes ─────────────────────────────────────────────
@@ -17,8 +19,8 @@ import type {
 const UTC_MINUS_3_OFFSET_MS = -3 * 60 * 60 * 1000;
 
 /**
- * Mapeamento de códigos de país ISO 2-letter (Finnhub) para moeda.
- * Usado quando a moeda não vem diretamente na resposta do Finnhub.
+ * Mapeamento de códigos de país ISO 2-letter (Finnhub/FMP) para moeda.
+ * Usado quando a moeda não vem diretamente na resposta.
  */
 const COUNTRY_TO_CURRENCY: Record<string, string> = {
   US: "USD",
@@ -125,10 +127,24 @@ const COUNTRY_NAME_TO_CURRENCY: Record<string, string> = {
 // ─── Helpers ────────────────────────────────────────────────
 
 /**
- * Gera ID determinístico SHA-1 a partir de currency + timestamp + title.
+ * Gera ID determinístico SHA-1 a partir de provider + country + timestamp + title.
  * Garante idempotência e deduplicação de eventos.
  */
 export function generateDeterministicId(
+  provider: string,
+  country: string,
+  timestamp: string,
+  title: string,
+): string {
+  const input = `${provider}|${country}|${timestamp}|${title}`;
+  return createHash("sha1").update(input).digest("hex");
+}
+
+/**
+ * Gera ID determinístico legado (compatibilidade com TE/Finnhub).
+ * Usa currency + timestamp + title.
+ */
+export function generateLegacyDeterministicId(
   currency: string,
   timestamp: string,
   title: string,
@@ -196,6 +212,32 @@ export function mapFinnhubImpact(impact: string): ImpactLevel {
 }
 
 /**
+ * Mapeia string de impacto do FMP para ImpactLevel e ImpactSource.
+ * FMP usa: "High", "Medium", "Low" (ou variações de case).
+ * Se o campo não existir ou for vazio, infere como MEDIUM.
+ */
+export function mapFmpImpact(impact: string | null | undefined): {
+  level: ImpactLevel;
+  source: ImpactSource;
+} {
+  if (!impact || impact.trim().length === 0) {
+    return { level: "MEDIUM", source: "INFERRED" };
+  }
+
+  const normalized = impact.toLowerCase().trim();
+  switch (normalized) {
+    case "high":
+      return { level: "HIGH", source: "PROVIDER" };
+    case "medium":
+      return { level: "MEDIUM", source: "PROVIDER" };
+    case "low":
+      return { level: "LOW", source: "PROVIDER" };
+    default:
+      return { level: "MEDIUM", source: "INFERRED" };
+  }
+}
+
+/**
  * Extrai valor numérico de strings como "0.5%", "ARS2307.48B", "178K", etc.
  * Retorna null se não conseguir parsear.
  */
@@ -251,6 +293,23 @@ function resolveFinnhubCurrency(raw: FinnhubRawEvent): string {
   return "UNKNOWN";
 }
 
+/**
+ * Resolve a moeda para um evento do FMP.
+ * FMP fornece o campo currency diretamente.
+ * Fallback para mapeamento por país se necessário.
+ */
+function resolveFmpCurrency(raw: FmpRawEvent): string {
+  if (raw.currency && raw.currency.trim().length > 0) {
+    return raw.currency.trim().toUpperCase();
+  }
+  // Fallback: mapear pelo código de país
+  const fromCountry = COUNTRY_TO_CURRENCY[raw.country];
+  if (fromCountry) {
+    return fromCountry;
+  }
+  return "UNKNOWN";
+}
+
 // ─── Normalização Principal ─────────────────────────────────
 
 /**
@@ -264,12 +323,13 @@ export function normalizeTradingEconomicsEvent(
   const title = raw.Event || raw.Category || "Unknown Event";
 
   return {
-    id: generateDeterministicId(currency, timestamp, title),
+    id: generateLegacyDeterministicId(currency, timestamp, title),
     timestamp,
     country: raw.Country,
     currency,
     title,
     impact: mapTeImportance(raw.Importance),
+    impact_source: "PROVIDER",
     previous: parseNumericValue(raw.Previous),
     forecast: parseNumericValue(raw.Forecast),
     actual: parseNumericValue(raw.Actual),
@@ -292,16 +352,58 @@ export function normalizeFinnhubEvent(
   const title = raw.event || "Unknown Event";
 
   return {
-    id: generateDeterministicId(currency, timestamp, title),
+    id: generateLegacyDeterministicId(currency, timestamp, title),
     timestamp,
     country: raw.country,
     currency,
     title,
     impact: mapFinnhubImpact(raw.impact),
+    impact_source: "PROVIDER",
     previous: raw.prev,
     forecast: raw.estimate,
     actual: raw.actual,
     source: "FINNHUB",
+    updated_at: new Date().toISOString(),
+    raw,
+  };
+}
+
+/**
+ * Normaliza um evento bruto do FMP para o formato interno.
+ *
+ * Mapeamento de campos FMP → EconomicEventNormalized:
+ * - date → timestamp (convertido para UTC-3)
+ * - country → country (código ISO 2-letter)
+ * - currency → currency (código de moeda)
+ * - event → title
+ * - impact → impact + impact_source (HIGH/MEDIUM/LOW; INFERRED se ausente)
+ * - previous → previous
+ * - estimate → forecast
+ * - actual → actual
+ * - source = "FMP"
+ * - id = SHA-1(FMP + country + timestamp + title)
+ */
+export function normalizeFmpEvent(
+  raw: FmpRawEvent,
+): EconomicEventNormalized {
+  const currency = resolveFmpCurrency(raw);
+  const timestamp = toUtcMinus3(raw.date);
+  const title = raw.event || "Unknown Event";
+  const country = raw.country || "UNKNOWN";
+  const { level: impact, source: impactSource } = mapFmpImpact(raw.impact);
+
+  return {
+    id: generateDeterministicId("FMP", country, timestamp, title),
+    timestamp,
+    country,
+    currency,
+    title,
+    impact,
+    impact_source: impactSource,
+    previous: raw.previous,
+    forecast: raw.estimate,
+    actual: raw.actual,
+    source: "FMP",
     updated_at: new Date().toISOString(),
     raw,
   };

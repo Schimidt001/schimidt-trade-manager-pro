@@ -12,6 +12,7 @@ export type {
   EventWindow,
   EventWindowPolicy,
   ImpactLevel,
+  ImpactSource,
   DataSource,
   ProviderState,
   ProviderHealthResult,
@@ -19,6 +20,7 @@ export type {
   TradingEconomicsRawEvent,
   FinnhubRawEvent,
   FinnhubCalendarResponse,
+  FmpRawEvent,
 } from "./news/types";
 
 // ─── Calendar Service (interface principal para a API) ──────
@@ -37,16 +39,28 @@ export {
 // ─── Normalização (utilitários) ─────────────────────────────
 export {
   generateDeterministicId,
+  generateLegacyDeterministicId,
   toUtcMinus3,
   mapTeImportance,
   mapFinnhubImpact,
+  mapFmpImpact,
   parseNumericValue,
   normalizeTradingEconomicsEvent,
   normalizeFinnhubEvent,
+  normalizeFmpEvent,
   sortEventsByTimestamp,
 } from "./news/normalize";
 
-// ─── Providers individuais (para uso direto se necessário) ──
+// ─── FMP Provider (primário) ────────────────────────────────
+export {
+  fetchCalendarDay as fetchFmpCalendar,
+  healthCheck as fmpHealthCheck,
+  clearCache as clearFmpCache,
+  getCacheSize as getFmpCacheSize,
+} from "./news/fmp";
+export type { FmpHealthCheckResult } from "./news/fmp";
+
+// ─── Providers legados (mantidos para compatibilidade) ──────
 export { fetchCalendarDay as fetchTradingEconomicsCalendar } from "./news/tradingEconomics";
 export { fetchCalendarDay as fetchFinnhubCalendar } from "./news/finnhub";
 

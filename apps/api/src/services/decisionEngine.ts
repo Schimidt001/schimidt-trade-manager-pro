@@ -10,14 +10,16 @@
 // @schimidt-brain/adapters (Market Data Provider).
 // O buildMockMclInput() foi substituído por buildRealMclInput().
 //
-// NEWS PROVIDER: Integrado via calendarService.
+// NEWS PROVIDER: Integrado via calendarService (FMP — Financial Modeling Prep).
 // EventProximity é resolvido em tempo real a partir do calendário econômico.
-// Se ambos providers falharem → EventProximity.NONE (sem bloqueio).
+// Se FMP falhar → provider_states.news = DOWN + DATA_DEGRADED.
+// Nunca voltar para mock. Sem dados = comportamento conservador.
 //
 // REGRAS DE SEGURANÇA (ZERO FALLBACK SILENCIOSO):
 // - Se dados reais falharem completamente → RISK_OFF, tick abortado
 // - Se símbolo individual não tiver dados → excluído do tick (não mockado)
 // - DATA_DEGRADED propagado como executionHealth ao MCL
+// - Se calendar provider DOWN durante janela crítica → RISK_OFF ou NO_TRADE
 // ═══════════════════════════════════════════════════════════════
 
 import {
@@ -373,9 +375,9 @@ function resolveDataQualityHealth(
  * Executa um ciclo completo de decisão (tick).
  *
  * Pipeline:
- * 1. Buscar calendário econômico e computar janelas de evento
+ * 1. Buscar calendário econômico via FMP e computar janelas de evento
  * 2. Para cada símbolo: buscar dados REAIS de mercado e gerar MCL snapshot
- *    - EventProximity resolvido em tempo real via calendarService
+ *    - EventProximity resolvido em tempo real via calendarService (FMP)
  *    - DATA_DEGRADED propagado como executionHealth
  * 3. Para cada snapshot: rodar todos os brains
  *    → Se brain retorna null (sem edge), registrar evento BRAIN_INTENT skip
@@ -389,6 +391,7 @@ function resolveDataQualityHealth(
  * - Se dados reais falharem completamente → RISK_OFF, tick abortado
  * - Se símbolo individual não tiver dados → excluído (não mockado)
  * - Mock APENAS em cenários de teste (G0/G1 com scenario != AUTO)
+ * - Se calendar provider DOWN → DATA_DEGRADED, comportamento conservador
  *
  * @param input - Lista de símbolos para processar
  */
@@ -426,12 +429,13 @@ export async function runTick(input: TickInput): Promise<TickResult> {
   const decisions: PmDecision[] = [];
   const eventsToStore: LedgerEventInput[] = [];
 
-  // ─── 0. Buscar calendário econômico (News Provider) ──────────
+  // ─── 0. Buscar calendário econômico (FMP Provider) ──────────
   // Integração real: resolve EventProximity para cada símbolo.
-  // Se ambos providers falharem → EventProximity.NONE (sem bloqueio,
-  // mas provider_state registrado como DOWN).
+  // Se FMP falhar → provider_states.news = DOWN + DATA_DEGRADED.
+  // Nunca voltar para mock. Sem dados = comportamento conservador.
   let eventWindows: EventWindow[] = [];
   let calendarResponse: CalendarServiceResponse | null = null;
+  let newsProviderDown = false;
 
   if (useRealData) {
     try {
@@ -442,6 +446,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
 
       // Registrar estado do provider de notícias
       setProviderState("NEWS", calendarResponse.provider_state);
+      newsProviderDown = calendarResponse.provider_state === "DOWN";
 
       console.log(
         `[DecisionEngine] Calendar: ${calendarResponse.events.length} eventos, ` +
@@ -449,13 +454,13 @@ export async function runTick(input: TickInput): Promise<TickResult> {
         `(${calendarResponse.provider_state})`
       );
 
-      // Se provider DOWN, registrar no ledger mas NÃO abortar tick
-      if (calendarResponse.provider_state === "DOWN") {
+      // Se provider DOWN ou DEGRADED, registrar no ledger
+      if (calendarResponse.provider_state !== "OK") {
         eventsToStore.push({
           event_id: newEventId(),
           correlation_id: correlationId,
           timestamp,
-          severity: "WARN",
+          severity: calendarResponse.provider_state === "DOWN" ? "WARN" : "INFO",
           event_type: "PROVIDER_STATE_CHANGE",
           component: "SYSTEM",
           symbol: null,
@@ -465,18 +470,42 @@ export async function runTick(input: TickInput): Promise<TickResult> {
             provider: "NEWS",
             provider_used: calendarResponse.provider_used,
             state: calendarResponse.provider_state,
-            reason: calendarResponse.reason ?? "Ambos providers de calendário falharam",
+            reason: calendarResponse.reason ?? "FMP provider com problema",
             event_windows: [],
-            impact: "EventProximity será NONE para todos os símbolos",
+            impact: newsProviderDown
+              ? "EventProximity será NONE para todos os símbolos — DATA_DEGRADED ativo"
+              : "Provider degradado — dados parciais",
           },
         });
       }
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
-      console.warn(`[DecisionEngine] Falha ao buscar calendário: ${err.message}`);
+      console.warn(`[DecisionEngine] Falha ao buscar calendário FMP: ${err.message}`);
       // Calendário falhou → EventProximity.NONE para todos
       // NÃO aborta o tick — dados de mercado são mais críticos
+      // Mas marca provider como DOWN e ativa DATA_DEGRADED
       setProviderState("NEWS", "DOWN");
+      newsProviderDown = true;
+
+      eventsToStore.push({
+        event_id: newEventId(),
+        correlation_id: correlationId,
+        timestamp,
+        severity: "WARN",
+        event_type: "PROVIDER_STATE_CHANGE",
+        component: "SYSTEM",
+        symbol: null,
+        brain_id: null,
+        reason_code: ReasonCode.PROV_DISCONNECTED,
+        payload: {
+          provider: "NEWS",
+          provider_used: "FMP",
+          state: "DOWN",
+          reason: `FMP provider falhou: ${err.message}`,
+          event_windows: [],
+          impact: "EventProximity será NONE para todos os símbolos — DATA_DEGRADED ativo",
+        },
+      });
     }
   }
 
@@ -590,11 +619,16 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       // ─── DADOS REAIS ─────────────────────────────────────────
       const marketData = marketDataMap.get(symbol)!;
 
-      // Resolver EventProximity real via calendarService
+      // Resolver EventProximity real via calendarService (FMP)
       const eventProximity = resolveEventProximity(symbol, eventWindows, timestamp);
 
       // Resolver executionHealth via Data Quality Gate
-      const dataQualityHealth = resolveDataQualityHealth(marketData);
+      let dataQualityHealth = resolveDataQualityHealth(marketData);
+
+      // Se news provider DOWN → propagar DATA_DEGRADED no executionHealth
+      if (newsProviderDown && dataQualityHealth === ExecutionHealth.OK) {
+        dataQualityHealth = ExecutionHealth.DEGRADED;
+      }
 
       const realInput = buildRealMclInput(
         marketData,
@@ -659,6 +693,9 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       payload: {
         ...(snapshot as unknown as Record<string, unknown>),
         data_source: useRealData ? "CTRADER" : "MOCK",
+        news_provider: useRealData ? "FMP" : "MOCK",
+        news_provider_state: newsProviderDown ? "DOWN" : (calendarResponse?.provider_state ?? "UNKNOWN"),
+        event_windows_count: eventWindows.length,
         ...(scenarioActive ? { scenario: scenarioActive } : {}),
       },
     });
