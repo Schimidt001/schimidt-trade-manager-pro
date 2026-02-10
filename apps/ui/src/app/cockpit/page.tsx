@@ -98,42 +98,52 @@ export default function CockpitPage() {
       (e) => (e.brain_id as string)?.toUpperCase() === brainId
     );
 
-    const lastIntent = brainEvents.find((e) => (e.event_type as string) === "INTENT") as Record<string, unknown> | undefined;
+    const lastIntent = brainEvents.find((e) => (e.event_type as string) === "BRAIN_INTENT") as Record<string, unknown> | undefined;
     const lastPm = brainEvents.find((e) => (e.event_type as string) === "PM_DECISION") as Record<string, unknown> | undefined;
-    const lastEhm = brainEvents.find((e) => (e.event_type as string) === "EHM_ACTION") as Record<string, unknown> | undefined;
+    const lastSkip = brainEvents.find((e) => (e.event_type as string) === "BRAIN_SKIP") as Record<string, unknown> | undefined;
 
     // Derive status from events
     let status = "IDLE";
-    if (lastEhm) {
-      const ehmType = (lastEhm.action_type as string) || "";
-      if (ehmType.includes("COOLDOWN")) status = "COOLDOWN";
-      else if (ehmType.includes("KILL") || ehmType.includes("BLOCK")) status = "OFF";
-    }
+    
+    // Se tem PM decision recente
     if (lastPm) {
-      const pmType = (lastPm.decision_type as string) || "";
-      if (pmType.includes("ALLOWED")) status = "ACTIVE";
+      const payload = (typeof lastPm.payload === "string" ? JSON.parse(lastPm.payload) : lastPm.payload) as Record<string, unknown>;
+      const decision = (payload.decision as string) || "";
+      if (decision === "ALLOW") status = "ACTIVE";
+      else if (decision === "DENY") status = "OFF";
+    }
+    
+    // Se tem intent recente mas sem PM, está aguardando
+    if (lastIntent && !lastPm) {
+      status = "ACTIVE";
     }
 
     return {
       status,
       lastIntent: lastIntent
         ? {
-            type: lastIntent.intent_type as string,
+            type: (() => {
+              const payload = (typeof lastIntent.payload === "string" ? JSON.parse(lastIntent.payload) : lastIntent.payload) as Record<string, unknown>;
+              return (payload.intent_type as string) || "—";
+            })(),
             symbol: lastIntent.symbol as string,
             timestamp: lastIntent.timestamp as string,
           }
         : null,
       lastPmDecision: lastPm
         ? {
-            type: lastPm.decision_type as string,
+            type: (() => {
+              const payload = (typeof lastPm.payload === "string" ? JSON.parse(lastPm.payload) : lastPm.payload) as Record<string, unknown>;
+              return (payload.decision as string) || "—";
+            })(),
             reason_code: lastPm.reason_code as string,
             timestamp: lastPm.timestamp as string,
           }
         : null,
-      lastEhmAction: lastEhm
+      lastSkip: lastSkip
         ? {
-            type: lastEhm.action_type as string,
-            timestamp: lastEhm.timestamp as string,
+            reason: (lastSkip.reason_code as string) || "—",
+            timestamp: lastSkip.timestamp as string,
           }
         : null,
       blockReasons: brainEvents
@@ -227,7 +237,7 @@ export default function CockpitPage() {
                 status={data.status}
                 lastIntent={data.lastIntent}
                 lastPmDecision={data.lastPmDecision}
-                lastEhmAction={data.lastEhmAction}
+                lastSkip={data.lastSkip}
                 blockReasons={data.blockReasons}
                 stateCheck={{
                   execution_ok: opsStatus?.execution_state === "OK",

@@ -20,8 +20,8 @@ interface BrainCardProps {
     reason_code?: string;
     timestamp?: string;
   } | null;
-  lastEhmAction?: {
-    type?: string;
+  lastSkip?: {
+    reason?: string;
     timestamp?: string;
   } | null;
   blockReasons?: Array<{
@@ -57,7 +57,7 @@ export function BrainCard({
   budgetUsed,
   lastIntent,
   lastPmDecision,
-  lastEhmAction,
+  lastSkip,
   blockReasons,
   stateCheck,
 }: BrainCardProps) {
@@ -117,9 +117,9 @@ export function BrainCard({
           </span>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-muted-foreground">Last EHM</span>
-          <span className="font-mono text-foreground">
-            {lastEhmAction ? lastEhmAction.type || "—" : "—"}
+          <span className="text-muted-foreground">Last Skip</span>
+          <span className="font-mono text-foreground text-[10px]">
+            {lastSkip ? lastSkip.reason || "—" : "—"}
           </span>
         </div>
       </div>
