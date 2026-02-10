@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ConfirmActionModal } from "@/components/common/ConfirmActionModal";
-import { apiPost } from "@/lib/api";
+import { apiPost, apiGet } from "@/lib/api";
 import { canOperate } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +30,13 @@ const SCENARIO_OPTIONS: { value: TestScenario; label: string }[] = [
   { value: "STRESS", label: "STRESS" },
 ];
 
+// ─── Config Type ────────────────────────────────────────────────
+interface Config {
+  symbols: string[];
+  gate?: string;
+  [key: string]: unknown;
+}
+
 // ─── Props ──────────────────────────────────────────────────────
 
 interface QuickActionsProps {
@@ -45,11 +52,33 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
   const [loading, setLoading] = useState(false);
   const [tickResult, setTickResult] = useState<string | null>(null);
   const [selectedScenario, setSelectedScenario] = useState<TestScenario>("AUTO");
+  const [config, setConfig] = useState<Config | null>(null);
+  const [configLoading, setConfigLoading] = useState(true);
+  const [configError, setConfigError] = useState<string | null>(null);
   const isOperator = canOperate();
   const isShadowMode = gate === "G0";
 
   // Cenários só disponíveis em G0 e G1. Em G2+ o seletor desaparece.
   const isScenarioAllowed = gate === "G0" || gate === "G1";
+
+  // Buscar config ao montar componente
+  useEffect(() => {
+    const fetchConfig = async () => {
+      try {
+        setConfigLoading(true);
+        const data = await apiGet<Config>("/config");
+        setConfig(data);
+        setConfigError(null);
+      } catch (err) {
+        console.error("Failed to fetch config:", err);
+        setConfigError("Erro ao carregar configuração");
+      } finally {
+        setConfigLoading(false);
+      }
+    };
+
+    fetchConfig();
+  }, []);
 
   const handleConfirm = async (reason: string) => {
     if (!activeAction) return;
@@ -58,9 +87,13 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
 
     try {
       if (activeAction === "TICK") {
-        // Run Tick — envia lista de símbolos default + cenário selecionado
+        // CORREÇÃO: Run Tick agora busca símbolos dinamicamente do config
+        if (!config || !config.symbols || config.symbols.length === 0) {
+          throw new Error("Configuração de símbolos não disponível");
+        }
+
         const tickBody: { symbols: string[]; scenario?: string } = {
-          symbols: ["EURUSD", "GBPUSD", "USDJPY", "BTCUSD"],
+          symbols: config.symbols,
         };
         // Só enviar cenário se não for AUTO e se o gate permitir
         if (selectedScenario !== "AUTO" && isScenarioAllowed) {
@@ -148,6 +181,22 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
     ? "ARM indisponível em G0 (Shadow Mode). O sistema precisa estar em G1+ para armar. Promova o gate via POST /ops/gate/promote."
     : "Armar sistema — autoriza execução de comandos pelo tick/scheduler";
 
+  // Run Tick desabilitado se config não carregou ou se não tem símbolos
+  const tickDisabled = !isOperator || configLoading || !config || !config.symbols || config.symbols.length === 0;
+  const tickTooltip = !isOperator
+    ? "Requer role Operator ou Admin"
+    : configLoading
+    ? "Carregando configuração..."
+    : configError
+    ? `Erro ao carregar config: ${configError}`
+    : !config || !config.symbols || config.symbols.length === 0
+    ? "Configuração de símbolos não disponível"
+    : `Executa um ciclo manual de decisão (MCL → Brains → PM).${
+        selectedScenario !== "AUTO" && isScenarioAllowed
+          ? ` Cenário: ${selectedScenario}`
+          : ""
+      } Símbolos: ${config.symbols.join(", ")}. Funciona em qualquer gate.`;
+
   return (
     <div className="rounded-lg border border-border bg-card p-4">
       <h3 className="text-xs font-medium uppercase text-muted-foreground mb-3">
@@ -161,6 +210,13 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
           Quem executa: <span className="font-mono">/ops/tick</span> (manual) ou Scheduler (automático).
         </p>
       </div>
+
+      {/* Config error feedback */}
+      {configError && (
+        <div className="rounded border border-red-500/30 bg-red-500/5 px-3 py-2 mb-3">
+          <p className="text-[10px] text-red-400">{configError}</p>
+        </div>
+      )}
 
       {/* Tick result feedback */}
       {tickResult && (
@@ -259,38 +315,35 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
         {/* RUN TICK — botão crítico para executar pipeline manual */}
         <button
           onClick={() => setActiveAction("TICK")}
-          disabled={!isOperator}
-          title={
-            isOperator
-              ? `Executa um ciclo manual de decisão (MCL → Brains → PM).${
-                  selectedScenario !== "AUTO" && isScenarioAllowed
-                    ? ` Cenário: ${selectedScenario}`
-                    : ""
-                } Funciona em qualquer gate.`
-              : "Requer role Operator ou Admin"
-          }
+          disabled={tickDisabled}
+          title={tickTooltip}
           className={cn(
             "w-full rounded-md px-4 py-2.5 text-sm font-medium transition-colors",
-            isOperator
+            !tickDisabled
               ? "bg-blue-600 text-white hover:bg-blue-700"
-              : "bg-secondary text-muted-foreground cursor-not-allowed"
+              : "bg-secondary text-muted-foreground cursor-not-allowed opacity-50"
           )}
         >
-          Run Tick
-          {selectedScenario !== "AUTO" && isScenarioAllowed && (
+          {configLoading ? "Loading..." : "Run Tick"}
+          {!configLoading && config && config.symbols && config.symbols.length > 0 && (
+            <span className="ml-2 text-[10px] font-mono opacity-80">
+              [{config.symbols.length} símbolos]
+            </span>
+          )}
+          {selectedScenario !== "AUTO" && isScenarioAllowed && !tickDisabled && (
             <span className="ml-2 text-[10px] font-mono opacity-80">
               [{selectedScenario}]
             </span>
           )}
         </button>
 
-        {/* KILL */}
+        {/* KILL — sempre visível */}
         <button
           onClick={() => setActiveAction("KILL")}
           disabled={!isOperator}
           title={
             isOperator
-              ? "Kill Switch — RISK_OFF + DISARM imediato. Use apenas em emergência."
+              ? "KILL ALL — encerra todas as posições e desarma sistema (RISK OFF)"
               : "Requer role Operator ou Admin"
           }
           className={cn(
@@ -300,110 +353,19 @@ export function QuickActions({ armState, gate, onActionComplete }: QuickActionsP
               : "bg-secondary text-muted-foreground cursor-not-allowed"
           )}
         >
-          KILL Switch
+          KILL ALL
         </button>
-
-        {/* Divider */}
-        <div className="border-t border-border my-3" />
-
-        {/* Quick Actions — Seção 5 das diretrizes */}
-        <h4 className="text-[10px] font-medium uppercase text-muted-foreground mb-1.5">
-          Quick Actions
-        </h4>
-        <div className="space-y-1.5">
-          <button
-            onClick={() => handleQuickAction("RISK_OFF")}
-            disabled={!isOperator}
-            title="Ativa modo RISK_OFF — para todas as operações e entra em modo defensivo. Equivale a KILL."
-            className="w-full rounded border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
-          >
-            Set RISK_OFF
-          </button>
-          <button
-            onClick={() => handleQuickAction("PAUSE_D2")}
-            disabled={!isOperator}
-            title="Pausa o Brain D2 (News Brain) — impede que notícias gerem intents até ser retomado. Backend pendente."
-            className="w-full rounded border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
-          >
-            Pause News Brain (D2)
-          </button>
-          <button
-            onClick={() => handleQuickAction("FREEZE_CONFIG")}
-            disabled={!isOperator}
-            title="Congela a configuração atual — impede qualquer alteração de config até ser desbloqueado. Backend pendente."
-            className="w-full rounded border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
-          >
-            Freeze Config
-          </button>
-          <button
-            onClick={() => handleQuickAction("RESUME_CONFIG")}
-            disabled={!isOperator}
-            title="Desbloqueia a configuração — permite alterações de config novamente. Backend pendente."
-            className="w-full rounded border border-border px-3 py-2 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors disabled:opacity-40 disabled:cursor-not-allowed text-left"
-          >
-            Resume Config
-          </button>
-        </div>
-
-        {!isOperator && (
-          <p className="text-[10px] text-muted-foreground/60 mt-2">
-            Role Viewer: ações desabilitadas
-          </p>
-        )}
       </div>
 
-      {/* ARM Modal */}
-      <ConfirmActionModal
-        open={activeAction === "ARM"}
-        onClose={() => setActiveAction(null)}
-        onConfirm={handleConfirm}
-        title="Armar Sistema"
-        description="ARM apenas AUTORIZA o sistema a executar comandos quando o tick ou scheduler for acionado. ARM não executa trades diretamente. Certifique-se de que todas as condições estão verificadas."
-        confirmText="ARM"
-        requireReason
-        loading={loading}
-      />
-
-      {/* DISARM Modal */}
-      <ConfirmActionModal
-        open={activeAction === "DISARM"}
-        onClose={() => setActiveAction(null)}
-        onConfirm={handleConfirm}
-        title="Desarmar Sistema"
-        description="DISARM revoga a autorização de execução. O sistema deixará de autorizar novos comandos ao executor. Posições abertas não serão afetadas."
-        confirmText="DISARM"
-        requireReason
-        loading={loading}
-      />
-
-      {/* KILL Modal */}
-      <ConfirmActionModal
-        open={activeAction === "KILL"}
-        onClose={() => setActiveAction(null)}
-        onConfirm={handleConfirm}
-        title="KILL Switch"
-        description="ATENÇÃO: Isto irá ativar RISK_OFF e DISARM imediatamente. Todas as autorizações serão revogadas e o sistema entrará em modo defensivo. Use apenas em emergência."
-        confirmText="KILL"
-        requireReason
-        variant="danger"
-        loading={loading}
-      />
-
-      {/* TICK Modal — sem reason obrigatório */}
-      <ConfirmActionModal
-        open={activeAction === "TICK"}
-        onClose={() => setActiveAction(null)}
-        onConfirm={() => handleConfirm("")}
-        title="Executar Tick Manual"
-        description={
-          selectedScenario !== "AUTO" && isScenarioAllowed
-            ? `Isto irá executar um ciclo completo de decisão com cenário ${selectedScenario}: MCL_SNAPSHOT → BRAIN_INTENT → PM_DECISION. O cenário será descartado após execução.`
-            : "Isto irá executar um ciclo completo de decisão: MCL_SNAPSHOT → BRAIN_INTENT → PM_DECISION. Os eventos aparecerão em /decisions/live."
-        }
-        confirmText="RUN TICK"
-        requireReason={false}
-        loading={loading}
-      />
+      {/* Confirm Action Modal */}
+      {activeAction && (
+        <ConfirmActionModal
+          action={activeAction}
+          onConfirm={handleConfirm}
+          onCancel={() => setActiveAction(null)}
+          loading={loading}
+        />
+      )}
     </div>
   );
 }
