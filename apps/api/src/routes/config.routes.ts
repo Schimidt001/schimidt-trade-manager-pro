@@ -45,7 +45,7 @@ let _config: SystemConfig = {
     max_exposure_per_currency_pct: 20,
     max_correlated_exposure_pct: 25,
   },
-  symbols: ["EURUSD", "GBPUSD", "USDJPY", "BTCUSD"],
+  symbols: ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDCAD", "AUDUSD", "NZDUSD"],
   updated_at: new Date().toISOString(),
 };
 

@@ -163,16 +163,6 @@ const SYMBOL_PROFILES: Record<string, SymbolProfile> = {
     session_overlap: 0.4,
     range_expansion: 1.0,
   },
-  BTCUSD: {
-    session: MarketSession.NY,
-    event_state: EventProximity.PRE_EVENT,
-    m15Override: "clean",
-    h1Override: "ranging",
-    volume_ratio: 1.1,
-    correlation_index: 0.5,
-    session_overlap: 0.4,
-    range_expansion: 1.0,
-  },
 };
 
 const DEFAULT_PROFILE: SymbolProfile = {
@@ -193,7 +183,7 @@ function buildMockMclInput(
   timestamp: string,
   scenarioOverrides?: ScenarioOverrides | null
 ): MclInput {
-  const basePrice = symbol.includes("BTC") ? 45000 : 1.08;
+  const basePrice = 1.08; // Base price para pares Forex
   const symbolProfile = SYMBOL_PROFILES[symbol] ?? DEFAULT_PROFILE;
   const profile = scenarioOverrides
     ? {

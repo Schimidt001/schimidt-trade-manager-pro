@@ -362,7 +362,7 @@ export async function registerOpsRoutes(app: FastifyInstance): Promise<void> {
    * POST /ops/tick
    * Executa um ciclo manual de decisão.
    * Requer: Operator+
-   * Body: { symbols: ["EURUSD", "BTCUSD"], scenario?: "AUTO" }
+   * Body: { symbols: ["EURUSD", "GBPUSD", "USDJPY"], scenario?: "AUTO" }
    * scenario é opcional e só aceite em G0/G1.
    */
   app.post("/ops/tick", async (request: FastifyRequest, reply: FastifyReply) => {
