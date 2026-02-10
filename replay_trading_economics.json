@@ -1,0 +1,550 @@
+{
+    "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+    "count": 15,
+    "events": [
+        {
+            "event_id": "1411cac4-ea5e-422f-8b9f-986d18efcc91",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "MCL_SNAPSHOT",
+            "component": "MCL",
+            "symbol": "EURUSD",
+            "brain_id": null,
+            "reason_code": "MCL_VOLATILITY_DROP",
+            "payload": {
+                "why": {
+                    "message": "Estrutura: TRANSITION | Volatilidade: LOW | Liquidez: CLEAN | Sess\u00e3o: NY",
+                    "reason_code": "MCL_VOLATILITY_DROP"
+                },
+                "symbol": "EURUSD",
+                "metrics": {
+                    "atr": 0.0011485714285714513,
+                    "last_close": 1.19054,
+                    "spread_bps": 3,
+                    "volume_ratio": 2.243216080402016,
+                    "correlation_index": 0.15
+                },
+                "event_id": "1411cac4-ea5e-422f-8b9f-986d18efcc91",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "data_source": "CTRADER",
+                "global_mode": "NORMAL",
+                "market_states": {
+                    "session": "NY",
+                    "structure": "TRANSITION",
+                    "volatility": "LOW",
+                    "event_proximity": "NONE",
+                    "liquidity_phase": "CLEAN"
+                },
+                "news_provider": "FMP",
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+                "execution_state": "OK",
+                "event_windows_count": 0,
+                "news_provider_state": "OK"
+            }
+        },
+        {
+            "event_id": "ea54d97f-eeb8-4012-8a1e-ab05d49b087c",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "BRAIN_SKIP",
+            "component": "A2",
+            "symbol": "EURUSD",
+            "brain_id": "A2",
+            "reason_code": "MCL_STRUCTURE_CHANGE",
+            "payload": {
+                "mock": false,
+                "symbol": "EURUSD",
+                "metrics": {
+                    "atr": 0.0011485714285714513,
+                    "last_close": 1.19054,
+                    "spread_bps": 3,
+                    "volume_ratio": 2.243216080402016,
+                    "correlation_index": 0.15
+                },
+                "brain_id": "A2",
+                "event_id": "ea54d97f-eeb8-4012-8a1e-ab05d49b087c",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "data_source": "CTRADER",
+                "skip_reason": "A2 n\u00e3o encontrou edge no contexto atual",
+                "market_states": {
+                    "session": "NY",
+                    "structure": "TRANSITION",
+                    "volatility": "LOW",
+                    "event_proximity": "NONE",
+                    "liquidity_phase": "CLEAN"
+                },
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec"
+            }
+        },
+        {
+            "event_id": "551f394c-881c-4c05-89e2-3294c2160b4f",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "BRAIN_INTENT",
+            "component": "B3",
+            "symbol": "EURUSD",
+            "brain_id": "B3",
+            "reason_code": "MCL_CORRELATION_SHIFT",
+            "payload": {
+                "why": {
+                    "message": "B3 detectou diverg\u00eancia de correla\u00e7\u00e3o (0.15) em EURUSD \u2014 oportunidade de mean-reversion",
+                    "reason_code": "MCL_CORRELATION_SHIFT"
+                },
+                "symbol": "EURUSD",
+                "brain_id": "B3",
+                "event_id": "551f394c-881c-4c05-89e2-3294c2160b4f",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "trade_plan": {
+                    "stop_loss": 1.188242857142857,
+                    "timeframe": "H1",
+                    "entry_price": 1.19054,
+                    "take_profit": 1.1939857142857142
+                },
+                "constraints": {
+                    "valid_until": "2026-02-10T15:43:46.423Z",
+                    "min_rr_ratio": 1.5,
+                    "max_slippage_bps": 20
+                },
+                "data_source": "CTRADER",
+                "intent_type": "HEDGE",
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+                "proposed_risk_pct": 0.75
+            }
+        },
+        {
+            "event_id": "6fbcc05f-76e6-4972-aeab-84e70919a127",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "BRAIN_SKIP",
+            "component": "C3",
+            "symbol": "EURUSD",
+            "brain_id": "C3",
+            "reason_code": "MCL_STRUCTURE_CHANGE",
+            "payload": {
+                "mock": false,
+                "symbol": "EURUSD",
+                "metrics": {
+                    "atr": 0.0011485714285714513,
+                    "last_close": 1.19054,
+                    "spread_bps": 3,
+                    "volume_ratio": 2.243216080402016,
+                    "correlation_index": 0.15
+                },
+                "brain_id": "C3",
+                "event_id": "6fbcc05f-76e6-4972-aeab-84e70919a127",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "data_source": "CTRADER",
+                "skip_reason": "C3 n\u00e3o encontrou edge no contexto atual",
+                "market_states": {
+                    "session": "NY",
+                    "structure": "TRANSITION",
+                    "volatility": "LOW",
+                    "event_proximity": "NONE",
+                    "liquidity_phase": "CLEAN"
+                },
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec"
+            }
+        },
+        {
+            "event_id": "41766c27-dc05-4875-a0e1-0cd8bc379893",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "BRAIN_SKIP",
+            "component": "D2",
+            "symbol": "EURUSD",
+            "brain_id": "D2",
+            "reason_code": "MCL_STRUCTURE_CHANGE",
+            "payload": {
+                "mock": false,
+                "symbol": "EURUSD",
+                "metrics": {
+                    "atr": 0.0011485714285714513,
+                    "last_close": 1.19054,
+                    "spread_bps": 3,
+                    "volume_ratio": 2.243216080402016,
+                    "correlation_index": 0.15
+                },
+                "brain_id": "D2",
+                "event_id": "41766c27-dc05-4875-a0e1-0cd8bc379893",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "data_source": "CTRADER",
+                "skip_reason": "D2 n\u00e3o encontrou edge no contexto atual",
+                "market_states": {
+                    "session": "NY",
+                    "structure": "TRANSITION",
+                    "volatility": "LOW",
+                    "event_proximity": "NONE",
+                    "liquidity_phase": "CLEAN"
+                },
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec"
+            }
+        },
+        {
+            "event_id": "cee78064-afeb-441c-97b9-229962c59b65",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "MCL_SNAPSHOT",
+            "component": "MCL",
+            "symbol": "GBPUSD",
+            "brain_id": null,
+            "reason_code": "MCL_VOLATILITY_DROP",
+            "payload": {
+                "why": {
+                    "message": "Estrutura: TRANSITION | Volatilidade: LOW | Liquidez: CLEAN | Sess\u00e3o: NY",
+                    "reason_code": "MCL_VOLATILITY_DROP"
+                },
+                "symbol": "GBPUSD",
+                "metrics": {
+                    "atr": 0.0014550000000000157,
+                    "last_close": 1.36813,
+                    "spread_bps": 5,
+                    "volume_ratio": 1.7473035439135847,
+                    "correlation_index": 0.15
+                },
+                "event_id": "cee78064-afeb-441c-97b9-229962c59b65",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "data_source": "CTRADER",
+                "global_mode": "NORMAL",
+                "market_states": {
+                    "session": "NY",
+                    "structure": "TRANSITION",
+                    "volatility": "LOW",
+                    "event_proximity": "NONE",
+                    "liquidity_phase": "CLEAN"
+                },
+                "news_provider": "FMP",
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+                "execution_state": "OK",
+                "event_windows_count": 0,
+                "news_provider_state": "OK"
+            }
+        },
+        {
+            "event_id": "6a03de33-85c4-41f2-8537-059c406e003e",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "BRAIN_SKIP",
+            "component": "A2",
+            "symbol": "GBPUSD",
+            "brain_id": "A2",
+            "reason_code": "MCL_STRUCTURE_CHANGE",
+            "payload": {
+                "mock": false,
+                "symbol": "GBPUSD",
+                "metrics": {
+                    "atr": 0.0014550000000000157,
+                    "last_close": 1.36813,
+                    "spread_bps": 5,
+                    "volume_ratio": 1.7473035439135847,
+                    "correlation_index": 0.15
+                },
+                "brain_id": "A2",
+                "event_id": "6a03de33-85c4-41f2-8537-059c406e003e",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "data_source": "CTRADER",
+                "skip_reason": "A2 n\u00e3o encontrou edge no contexto atual",
+                "market_states": {
+                    "session": "NY",
+                    "structure": "TRANSITION",
+                    "volatility": "LOW",
+                    "event_proximity": "NONE",
+                    "liquidity_phase": "CLEAN"
+                },
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec"
+            }
+        },
+        {
+            "event_id": "15c2aa1f-e4d7-422b-8b5a-8f0178006d17",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "BRAIN_INTENT",
+            "component": "B3",
+            "symbol": "GBPUSD",
+            "brain_id": "B3",
+            "reason_code": "MCL_CORRELATION_SHIFT",
+            "payload": {
+                "why": {
+                    "message": "B3 detectou diverg\u00eancia de correla\u00e7\u00e3o (0.15) em GBPUSD \u2014 oportunidade de mean-reversion",
+                    "reason_code": "MCL_CORRELATION_SHIFT"
+                },
+                "symbol": "GBPUSD",
+                "brain_id": "B3",
+                "event_id": "15c2aa1f-e4d7-422b-8b5a-8f0178006d17",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "trade_plan": {
+                    "stop_loss": 1.36522,
+                    "timeframe": "H1",
+                    "entry_price": 1.36813,
+                    "take_profit": 1.372495
+                },
+                "constraints": {
+                    "valid_until": "2026-02-10T15:43:46.423Z",
+                    "min_rr_ratio": 1.5,
+                    "max_slippage_bps": 20
+                },
+                "data_source": "CTRADER",
+                "intent_type": "HEDGE",
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+                "proposed_risk_pct": 0.75
+            }
+        },
+        {
+            "event_id": "d861f9e8-c392-447f-a6cf-49b73a0a99a2",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "BRAIN_SKIP",
+            "component": "C3",
+            "symbol": "GBPUSD",
+            "brain_id": "C3",
+            "reason_code": "MCL_STRUCTURE_CHANGE",
+            "payload": {
+                "mock": false,
+                "symbol": "GBPUSD",
+                "metrics": {
+                    "atr": 0.0014550000000000157,
+                    "last_close": 1.36813,
+                    "spread_bps": 5,
+                    "volume_ratio": 1.7473035439135847,
+                    "correlation_index": 0.15
+                },
+                "brain_id": "C3",
+                "event_id": "d861f9e8-c392-447f-a6cf-49b73a0a99a2",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "data_source": "CTRADER",
+                "skip_reason": "C3 n\u00e3o encontrou edge no contexto atual",
+                "market_states": {
+                    "session": "NY",
+                    "structure": "TRANSITION",
+                    "volatility": "LOW",
+                    "event_proximity": "NONE",
+                    "liquidity_phase": "CLEAN"
+                },
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec"
+            }
+        },
+        {
+            "event_id": "a05bc63f-feca-4e2a-a256-298a2797384e",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "BRAIN_SKIP",
+            "component": "D2",
+            "symbol": "GBPUSD",
+            "brain_id": "D2",
+            "reason_code": "MCL_STRUCTURE_CHANGE",
+            "payload": {
+                "mock": false,
+                "symbol": "GBPUSD",
+                "metrics": {
+                    "atr": 0.0014550000000000157,
+                    "last_close": 1.36813,
+                    "spread_bps": 5,
+                    "volume_ratio": 1.7473035439135847,
+                    "correlation_index": 0.15
+                },
+                "brain_id": "D2",
+                "event_id": "a05bc63f-feca-4e2a-a256-298a2797384e",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "data_source": "CTRADER",
+                "skip_reason": "D2 n\u00e3o encontrou edge no contexto atual",
+                "market_states": {
+                    "session": "NY",
+                    "structure": "TRANSITION",
+                    "volatility": "LOW",
+                    "event_proximity": "NONE",
+                    "liquidity_phase": "CLEAN"
+                },
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec"
+            }
+        },
+        {
+            "event_id": "c4b8b36c-7281-4456-9a10-65b1e3463d9f",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "PM_DECISION",
+            "component": "PM",
+            "symbol": "EURUSD",
+            "brain_id": "B3",
+            "reason_code": "PM_POSITION_ALLOWED",
+            "payload": {
+                "why": {
+                    "message": "Intent aprovado: risco 0.8% dentro dos limites para EURUSD",
+                    "reason_code": "PM_POSITION_ALLOWED"
+                },
+                "decision": "ALLOW",
+                "event_id": "c4b8b36c-7281-4456-9a10-65b1e3463d9f",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "risk_state": {
+                    "daily_loss_pct": 0,
+                    "open_positions": 0,
+                    "available_risk_pct": 30,
+                    "current_drawdown_pct": 0,
+                    "current_exposure_pct": 0
+                },
+                "data_source": "CTRADER",
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+                "intent_event_id": "551f394c-881c-4c05-89e2-3294c2160b4f",
+                "risk_adjustments": null
+            }
+        },
+        {
+            "event_id": "86a322d8-7c3f-4b6a-a7e7-ae30397ebfa9",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:46.423Z",
+            "severity": "INFO",
+            "event_type": "PM_DECISION",
+            "component": "PM",
+            "symbol": "GBPUSD",
+            "brain_id": "B3",
+            "reason_code": "PM_POSITION_ALLOWED",
+            "payload": {
+                "why": {
+                    "message": "Intent aprovado: risco 0.8% dentro dos limites para GBPUSD",
+                    "reason_code": "PM_POSITION_ALLOWED"
+                },
+                "decision": "ALLOW",
+                "event_id": "86a322d8-7c3f-4b6a-a7e7-ae30397ebfa9",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:46.423Z",
+                "risk_state": {
+                    "daily_loss_pct": 0,
+                    "open_positions": 0,
+                    "available_risk_pct": 30,
+                    "current_drawdown_pct": 0,
+                    "current_exposure_pct": 0
+                },
+                "data_source": "CTRADER",
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+                "intent_event_id": "15c2aa1f-e4d7-422b-8b5a-8f0178006d17",
+                "risk_adjustments": null
+            }
+        },
+        {
+            "event_id": "5d0267a7-8d34-48c0-9c32-21aa363d9f18",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:51.163Z",
+            "severity": "INFO",
+            "event_type": "EXEC_SIMULATED_COMMAND",
+            "component": "SYSTEM",
+            "symbol": "EURUSD",
+            "brain_id": "B3",
+            "reason_code": "EXEC_SIMULATED_COMMAND",
+            "payload": {
+                "gate": "G0",
+                "mock": false,
+                "armed": false,
+                "symbol": "EURUSD",
+                "brain_id": "B3",
+                "decision": "ALLOW",
+                "event_id": "5d0267a7-8d34-48c0-9c32-21aa363d9f18",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:51.163Z",
+                "trade_plan": {
+                    "stop_loss": 1.188242857142857,
+                    "timeframe": "H1",
+                    "entry_price": 1.19054,
+                    "take_profit": 1.1939857142857142
+                },
+                "data_source": "CTRADER",
+                "intent_type": "HEDGE",
+                "commands_sent": false,
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+                "risk_adjustments": null,
+                "simulation_label": "SIMULATOR: HEDGE EURUSD (B3)",
+                "proposed_risk_pct": 0.75
+            }
+        },
+        {
+            "event_id": "d8fd785f-d852-4fc2-b675-756b3d960556",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:51.164Z",
+            "severity": "INFO",
+            "event_type": "EXEC_SIMULATED_COMMAND",
+            "component": "SYSTEM",
+            "symbol": "GBPUSD",
+            "brain_id": "B3",
+            "reason_code": "EXEC_SIMULATED_COMMAND",
+            "payload": {
+                "gate": "G0",
+                "mock": false,
+                "armed": false,
+                "symbol": "GBPUSD",
+                "brain_id": "B3",
+                "decision": "ALLOW",
+                "event_id": "d8fd785f-d852-4fc2-b675-756b3d960556",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:51.164Z",
+                "trade_plan": {
+                    "stop_loss": 1.36522,
+                    "timeframe": "H1",
+                    "entry_price": 1.36813,
+                    "take_profit": 1.372495
+                },
+                "data_source": "CTRADER",
+                "intent_type": "HEDGE",
+                "commands_sent": false,
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+                "risk_adjustments": null,
+                "simulation_label": "SIMULATOR: HEDGE GBPUSD (B3)",
+                "proposed_risk_pct": 0.75
+            }
+        },
+        {
+            "event_id": "6294db9e-2775-4e83-9317-8f091627efbe",
+            "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+            "timestamp": "2026-02-10T14:43:51.165Z",
+            "severity": "INFO",
+            "event_type": "AUDIT_LOG",
+            "component": "SYSTEM",
+            "symbol": null,
+            "brain_id": null,
+            "reason_code": null,
+            "payload": {
+                "diff": {
+                    "after": {
+                        "gate": "G0",
+                        "scenario": null,
+                        "mock_mode": false,
+                        "commands_sent": false,
+                        "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec",
+                        "events_persisted": 14
+                    },
+                    "before": null
+                },
+                "actor": {
+                    "role": "operator",
+                    "user": "operator"
+                },
+                "action": "MANUAL_ACTION",
+                "reason": "Tick manual executado para EURUSD, GBPUSD",
+                "event_id": "6294db9e-2775-4e83-9317-8f091627efbe",
+                "resource": "ops.tick",
+                "severity": "INFO",
+                "timestamp": "2026-02-10T14:43:51.165Z",
+                "reason_code": "AUDIT_CONFIG_CHANGED",
+                "correlation_id": "8d741691-7e9d-4e80-9f12-fdb1b3a5efec"
+            }
+        }
+    ]
+}
