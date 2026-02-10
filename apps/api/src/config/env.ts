@@ -37,6 +37,12 @@ export interface EnvConfig {
   MARKET_DATA_PROVIDER: string;
   /** Market Data request timeout in ms */
   MARKET_DATA_TIMEOUT_MS: number;
+
+  // ─── News Provider (Calendar) ─────────────────────────────
+  /** Trading Economics API Key (opcional — se ausente, tenta Finnhub) */
+  TRADING_ECONOMICS_API_KEY: string;
+  /** Finnhub API Key (opcional — fallback do TE) */
+  FINNHUB_API_KEY: string;
 }
 
 function requireEnv(name: string): string {
@@ -67,6 +73,10 @@ export function loadEnv(): EnvConfig {
     CTRADER_ENV: process.env.CTRADER_ENV ?? "DEMO",
     MARKET_DATA_PROVIDER: process.env.MARKET_DATA_PROVIDER ?? "CTRADER",
     MARKET_DATA_TIMEOUT_MS: parseInt(process.env.MARKET_DATA_TIMEOUT_MS ?? "5000", 10),
+
+    // News Provider (opcionais — calendarService lê direto de process.env)
+    TRADING_ECONOMICS_API_KEY: process.env.TRADING_ECONOMICS_API_KEY ?? "",
+    FINNHUB_API_KEY: process.env.FINNHUB_API_KEY ?? "",
   };
 }
 

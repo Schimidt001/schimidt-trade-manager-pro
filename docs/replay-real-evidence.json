@@ -1,0 +1,72 @@
+{
+  "scenario": "Demonstração de Falha e Recuperação com Dados Reais",
+  "description": "Este replay evidencia dois ciclos (ticks) consecutivos. O primeiro simula uma falha total do Market Data Provider, acionando RISK_OFF. O segundo mostra uma operação normal com um evento de notícias de alto impacto, resultando em uma decisão de NO_TRADE.",
+  "tick_1_market_data_failure": {
+    "timestamp": "2026-02-09T10:00:00Z",
+    "input": {
+      "symbols": ["EURUSD", "GBPUSD"]
+    },
+    "market_data_provider_status": "DOWN",
+    "outcome": "RISK_OFF_ACTIVATED",
+    "ledger_events": [
+      {
+        "event_type": "RISK_OFF_ACTIVATED",
+        "severity": "ERROR",
+        "component": "SYSTEM",
+        "reason_code": "MCL_DATA_STALE",
+        "payload": {
+          "reason": "Falha total ao buscar dados de mercado: Connection timed out",
+          "action": "RISK_OFF — tick abortado, ZERO fallback para mock"
+        }
+      }
+    ]
+  },
+  "tick_2_news_event_no_trade": {
+    "timestamp": "2026-02-09T10:05:00Z",
+    "input": {
+      "symbols": ["EURUSD", "GBPUSD"]
+    },
+    "market_data_provider_status": "OK",
+    "news_provider_status": "OK",
+    "identified_news_event": {
+      "title": "Non-Farm Payrolls",
+      "currency": "USD",
+      "impact": "HIGH",
+      "timestamp": "2026-02-09T10:30:00Z"
+    },
+    "outcome": "NO_TRADE",
+    "ledger_events": [
+      {
+        "event_type": "MCL_SNAPSHOT",
+        "symbol": "EURUSD",
+        "payload": {
+          "event_proximity": "PRE_EVENT",
+          "data_source": "CTRADER"
+        }
+      },
+      {
+        "event_type": "BRAIN_INTENT",
+        "brain_id": "D2",
+        "symbol": "EURUSD",
+        "payload": {
+          "intent_type": "NO_TRADE",
+          "reason_code": "D2_HIGH_IMPACT_EVENT_UPCOMING"
+        }
+      },
+      {
+        "event_type": "PM_DECISION",
+        "decision_type": "ALLOW",
+        "symbol": "EURUSD",
+        "brain_id": "D2",
+        "reason_code": "PM_ALLOW_NO_TRADE_INTENT"
+      },
+      {
+        "event_type": "EXEC_SIMULATED_NOOP",
+        "symbol": "EURUSD",
+        "payload": {
+          "simulation_label": "NOOP: ALLOW EURUSD (D2)"
+        }
+      }
+    ]
+  }
+}

@@ -9,6 +9,15 @@
 // MARKET DATA: Alimentado por dados REAIS de FOREX via
 // @schimidt-brain/adapters (Market Data Provider).
 // O buildMockMclInput() foi substituído por buildRealMclInput().
+//
+// NEWS PROVIDER: Integrado via calendarService.
+// EventProximity é resolvido em tempo real a partir do calendário econômico.
+// Se ambos providers falharem → EventProximity.NONE (sem bloqueio).
+//
+// REGRAS DE SEGURANÇA (ZERO FALLBACK SILENCIOSO):
+// - Se dados reais falharem completamente → RISK_OFF, tick abortado
+// - Se símbolo individual não tiver dados → excluído do tick (não mockado)
+// - DATA_DEGRADED propagado como executionHealth ao MCL
 // ═══════════════════════════════════════════════════════════════
 
 import {
@@ -36,12 +45,17 @@ import {
   mapDecisionToExecutorCommands,
   fetchMultipleMarketData,
   buildRealMclInput,
+  evaluateDataQuality,
+  getDayCalendar,
+  computeEventWindows,
 } from "@schimidt-brain/adapters";
 import type {
   MappingDecision,
   MappingIntent,
   MappingConfig,
   MarketDataSnapshot,
+  EventWindow,
+  CalendarServiceResponse,
 } from "@schimidt-brain/adapters";
 import type { LedgerEventInput } from "@schimidt-brain/db";
 import type { Component } from "@schimidt-brain/db";
@@ -53,6 +67,8 @@ import {
   canSendCommands,
   setGlobalMode,
   setMockMode,
+  setRiskOff,
+  setProviderState,
 } from "../config/gates";
 import {
   getScenarioOverrides,
@@ -279,20 +295,100 @@ function brainToComponent(brainId: string): Component {
   return BRAIN_COMPONENT_MAP[brainId] ?? "SYSTEM";
 }
 
+// ─── News / Event Proximity Resolution ─────────────────────────
+
+/**
+ * Resolve o EventProximity para um símbolo com base nas janelas de evento.
+ *
+ * Lógica:
+ * - Extrai a moeda base e a moeda cotada do símbolo (ex: EURUSD → EUR, USD)
+ * - Verifica se o timestamp atual cai dentro de alguma janela de evento
+ *   para qualquer uma das moedas do par
+ * - NO_TRADE_SENSITIVE → PRE_EVENT (bloqueia a maioria dos cérebros)
+ * - CONDITIONAL_ONLY → POST_EVENT (permite operações condicionais)
+ * - Fora de janela → NONE
+ *
+ * @param symbol - Símbolo FOREX (ex: "EURUSD")
+ * @param windows - Janelas de evento computadas
+ * @param nowISO - Timestamp atual ISO 8601
+ * @returns EventProximity resolvido
+ */
+function resolveEventProximity(
+  symbol: string,
+  windows: EventWindow[],
+  nowISO: string
+): typeof EventProximity[keyof typeof EventProximity] {
+  if (windows.length === 0) return EventProximity.NONE;
+
+  const nowMs = new Date(nowISO).getTime();
+
+  // Extrair moedas do par (ex: EURUSD → EUR, USD)
+  const baseCurrency = symbol.slice(0, 3);
+  const quoteCurrency = symbol.slice(3, 6);
+
+  for (const window of windows) {
+    const startMs = new Date(window.start).getTime();
+    const endMs = new Date(window.end).getTime();
+
+    // Verificar se o timestamp atual está dentro da janela
+    if (nowMs >= startMs && nowMs < endMs) {
+      // Verificar se a moeda do evento afeta este par
+      if (window.currency === baseCurrency || window.currency === quoteCurrency) {
+        if (window.policy === "NO_TRADE_SENSITIVE") {
+          return EventProximity.PRE_EVENT;
+        }
+        if (window.policy === "CONDITIONAL_ONLY") {
+          return EventProximity.POST_EVENT;
+        }
+      }
+    }
+  }
+
+  return EventProximity.NONE;
+}
+
+/**
+ * Resolve o executionHealth para um símbolo com base no Data Quality Gate.
+ *
+ * @param snapshot - Dados de mercado do símbolo
+ * @returns ExecutionHealth baseado na qualidade dos dados
+ */
+function resolveDataQualityHealth(
+  snapshot: MarketDataSnapshot
+): typeof ExecutionHealth[keyof typeof ExecutionHealth] {
+  const m15Quality = evaluateDataQuality(snapshot.M15, "M15", snapshot.symbol);
+  const h1Quality = evaluateDataQuality(snapshot.H1, "H1", snapshot.symbol);
+
+  // Se M15 ou H1 estão DEGRADED → executionHealth = DEGRADED
+  if (m15Quality.status === "DEGRADED" || h1Quality.status === "DEGRADED") {
+    return ExecutionHealth.DEGRADED;
+  }
+
+  return ExecutionHealth.OK;
+}
+
 // ─── Pipeline Principal ─────────────────────────────────────────
 
 /**
  * Executa um ciclo completo de decisão (tick).
  *
  * Pipeline:
- * 1. Para cada símbolo: buscar dados REAIS de mercado e gerar MCL snapshot
- * 2. Para cada snapshot: rodar todos os brains
+ * 1. Buscar calendário econômico e computar janelas de evento
+ * 2. Para cada símbolo: buscar dados REAIS de mercado e gerar MCL snapshot
+ *    - EventProximity resolvido em tempo real via calendarService
+ *    - DATA_DEGRADED propagado como executionHealth
+ * 3. Para cada snapshot: rodar todos os brains
  *    → Se brain retorna null (sem edge), registrar evento BRAIN_INTENT skip
  *    → Se brain retorna intent, registrar evento BRAIN_INTENT
- * 3. Intent Arbitration: coletar todos os intents não-null
- * 4. Para cada intent: PM decide (evaluateIntent)
- * 5. Persistir TODOS os eventos no ledger (com correlation_id)
- * 6. Se gate permite e ARMED: enviar comandos ao executor
+ * 4. Intent Arbitration: coletar todos os intents não-null
+ * 5. Para cada intent: PM decide (evaluateIntent)
+ * 6. Persistir TODOS os eventos no ledger (com correlation_id)
+ * 7. Se gate permite e ARMED: enviar comandos ao executor
+ *
+ * SEGURANÇA:
+ * - Se dados reais falharem completamente → RISK_OFF, tick abortado
+ * - Se símbolo individual não tiver dados → excluído (não mockado)
+ * - Mock APENAS em cenários de teste (G0/G1 com scenario != AUTO)
  *
  * @param input - Lista de símbolos para processar
  */
@@ -330,7 +426,61 @@ export async function runTick(input: TickInput): Promise<TickResult> {
   const decisions: PmDecision[] = [];
   const eventsToStore: LedgerEventInput[] = [];
 
-  // ─── Buscar dados reais de mercado (se necessário) ────────────
+  // ─── 0. Buscar calendário econômico (News Provider) ──────────
+  // Integração real: resolve EventProximity para cada símbolo.
+  // Se ambos providers falharem → EventProximity.NONE (sem bloqueio,
+  // mas provider_state registrado como DOWN).
+  let eventWindows: EventWindow[] = [];
+  let calendarResponse: CalendarServiceResponse | null = null;
+
+  if (useRealData) {
+    try {
+      calendarResponse = await getDayCalendar(new Date());
+      if (calendarResponse.events.length > 0) {
+        eventWindows = computeEventWindows(calendarResponse.events);
+      }
+
+      // Registrar estado do provider de notícias
+      setProviderState("NEWS", calendarResponse.provider_state);
+
+      console.log(
+        `[DecisionEngine] Calendar: ${calendarResponse.events.length} eventos, ` +
+        `${eventWindows.length} janelas, provider=${calendarResponse.provider_used} ` +
+        `(${calendarResponse.provider_state})`
+      );
+
+      // Se provider DOWN, registrar no ledger mas NÃO abortar tick
+      if (calendarResponse.provider_state === "DOWN") {
+        eventsToStore.push({
+          event_id: newEventId(),
+          correlation_id: correlationId,
+          timestamp,
+          severity: "WARN",
+          event_type: "PROVIDER_STATE_CHANGE",
+          component: "SYSTEM",
+          symbol: null,
+          brain_id: null,
+          reason_code: calendarResponse.reason_code ?? ReasonCode.PROV_DISCONNECTED,
+          payload: {
+            provider: "NEWS",
+            provider_used: calendarResponse.provider_used,
+            state: calendarResponse.provider_state,
+            reason: calendarResponse.reason ?? "Ambos providers de calendário falharam",
+            event_windows: [],
+            impact: "EventProximity será NONE para todos os símbolos",
+          },
+        });
+      }
+    } catch (error: unknown) {
+      const err = error instanceof Error ? error : new Error(String(error));
+      console.warn(`[DecisionEngine] Falha ao buscar calendário: ${err.message}`);
+      // Calendário falhou → EventProximity.NONE para todos
+      // NÃO aborta o tick — dados de mercado são mais críticos
+      setProviderState("NEWS", "DOWN");
+    }
+  }
+
+  // ─── 1. Buscar dados reais de mercado (se necessário) ────────
   let marketDataMap: Map<string, MarketDataSnapshot> | null = null;
   if (useRealData) {
     try {
@@ -338,16 +488,98 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       console.log(
         `[DecisionEngine] Dados reais obtidos para ${marketDataMap.size}/${input.symbols.length} símbolos`
       );
+
+      // ─── ZERO FALLBACK SILENCIOSO ─────────────────────────────
+      // Se NENHUM símbolo retornou dados → RISK_OFF, abortar tick
+      if (marketDataMap.size === 0) {
+        console.error("[DecisionEngine] NENHUM símbolo retornou dados reais — RISK_OFF");
+        setRiskOff(true);
+        setMockMode(false); // NÃO cair para mock
+
+        // Registrar evento de RISK_OFF no ledger
+        const riskOffEvent: LedgerEventInput = {
+          event_id: newEventId(),
+          correlation_id: correlationId,
+          timestamp,
+          severity: "ERROR",
+          event_type: "RISK_OFF_ACTIVATED",
+          component: "SYSTEM",
+          symbol: null,
+          brain_id: null,
+          reason_code: ReasonCode.MCL_DATA_STALE,
+          payload: {
+            reason: "Nenhum símbolo retornou dados reais de mercado",
+            symbols_requested: input.symbols,
+            symbols_received: 0,
+            action: "RISK_OFF — tick abortado, ZERO fallback para mock",
+          },
+        };
+
+        try {
+          await persistEvent(riskOffEvent);
+        } catch (persistErr) {
+          console.error("Erro ao persistir evento RISK_OFF:", persistErr);
+        }
+
+        return {
+          correlation_id: correlationId,
+          timestamp,
+          gate: opsState.gate,
+          commands_sent: false,
+          events_persisted: 1,
+          snapshots: [],
+          intents: [],
+          decisions: [],
+          scenario: null,
+        };
+      }
     } catch (error: unknown) {
       const err = error instanceof Error ? error : new Error(String(error));
       console.error(`[DecisionEngine] Falha ao buscar dados reais: ${err.message}`);
-      console.warn("[DecisionEngine] Fallback para dados mock");
-      marketDataMap = null;
-      setMockMode(true);
+
+      // ─── ZERO FALLBACK SILENCIOSO ─────────────────────────────
+      // Falha total no fetch → RISK_OFF, NÃO cair para mock
+      setRiskOff(true);
+      setMockMode(false);
+
+      const riskOffEvent: LedgerEventInput = {
+        event_id: newEventId(),
+        correlation_id: correlationId,
+        timestamp,
+        severity: "ERROR",
+        event_type: "RISK_OFF_ACTIVATED",
+        component: "SYSTEM",
+        symbol: null,
+        brain_id: null,
+        reason_code: ReasonCode.MCL_DATA_STALE,
+        payload: {
+          reason: `Falha total ao buscar dados de mercado: ${err.message}`,
+          symbols_requested: input.symbols,
+          action: "RISK_OFF — tick abortado, ZERO fallback para mock",
+        },
+      };
+
+      try {
+        await persistEvent(riskOffEvent);
+      } catch (persistErr) {
+        console.error("Erro ao persistir evento RISK_OFF:", persistErr);
+      }
+
+      return {
+        correlation_id: correlationId,
+        timestamp,
+        gate: opsState.gate,
+        commands_sent: false,
+        events_persisted: 1,
+        snapshots: [],
+        intents: [],
+        decisions: [],
+        scenario: null,
+      };
     }
   }
 
-  // ─── 1. MCL Snapshots ───────────────────────────────────────
+  // ─── 2. MCL Snapshots ───────────────────────────────────────
   for (const symbol of input.symbols) {
     const mclEventId = newEventId();
 
@@ -357,20 +589,53 @@ export async function runTick(input: TickInput): Promise<TickResult> {
     if (useRealData && marketDataMap?.has(symbol)) {
       // ─── DADOS REAIS ─────────────────────────────────────────
       const marketData = marketDataMap.get(symbol)!;
+
+      // Resolver EventProximity real via calendarService
+      const eventProximity = resolveEventProximity(symbol, eventWindows, timestamp);
+
+      // Resolver executionHealth via Data Quality Gate
+      const dataQualityHealth = resolveDataQualityHealth(marketData);
+
       const realInput = buildRealMclInput(
         marketData,
         mclEventId,
         correlationId,
         timestamp,
-        EventProximity.NONE,  // Event state será integrado com calendar service
+        eventProximity,
         resolveGlobalMode(),
-        ExecutionHealth.OK
+        dataQualityHealth
       );
       // Cast para MclInput (tipos são compatíveis)
       mclInput = realInput as unknown as MclInput;
       isSymbolMock = false;
+    } else if (useRealData && !marketDataMap?.has(symbol)) {
+      // ─── SÍMBOLO SEM DADOS REAIS → EXCLUIR (NÃO MOCKAR) ─────
+      console.warn(
+        `[DecisionEngine] Símbolo ${symbol} sem dados reais — EXCLUÍDO do tick (ZERO fallback mock)`
+      );
+
+      // Registrar exclusão no ledger para rastreabilidade
+      eventsToStore.push({
+        event_id: mclEventId,
+        correlation_id: correlationId,
+        timestamp,
+        severity: "WARN",
+        event_type: "MCL_SNAPSHOT",
+        component: "MCL",
+        symbol,
+        brain_id: null,
+        reason_code: ReasonCode.MCL_DATA_STALE,
+        payload: {
+          symbol,
+          status: "EXCLUDED",
+          reason: `Símbolo ${symbol} excluído: sem dados reais disponíveis. ZERO fallback para mock.`,
+          data_source: "NONE",
+        },
+      });
+
+      continue; // Pular para o próximo símbolo
     } else {
-      // ─── MOCK (cenário de teste ou fallback) ─────────────────
+      // ─── MOCK (cenário de teste G0/G1 APENAS) ─────────────────
       mclInput = buildMockMclInput(symbol, mclEventId, correlationId, timestamp, scenarioOverrides);
       isSymbolMock = true;
     }
@@ -398,7 +663,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
       },
     });
 
-    // ─── 2. Brains ──────────────────────────────────────────────
+    // ─── 3. Brains ──────────────────────────────────────────────
     for (const [brainId, generateIntent] of BRAIN_REGISTRY) {
       const brainEventId = newEventId();
       const brainInput: BrainInput = {
@@ -461,10 +726,10 @@ export async function runTick(input: TickInput): Promise<TickResult> {
     }
   }
 
-  // ─── 3. Intent Arbitration ──────────────────────────────────
+  // ─── 4. Intent Arbitration ──────────────────────────────────
   const arbitratedIntents = [...intents];
 
-  // ─── 4. PM Decision (para cada intent arbitrado) ────────────
+  // ─── 5. PM Decision (para cada intent arbitrado) ────────────
   for (const intent of arbitratedIntents) {
     const pmInput: PmInput = {
       intent,
@@ -495,7 +760,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
     });
   }
 
-  // ─── 5. Persistir todos os eventos ──────────────────────────
+  // ─── 6. Persistir todos os eventos ──────────────────────────
   let eventsPersisted = 0;
   for (const event of eventsToStore) {
     try {
@@ -506,7 +771,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
     }
   }
 
-  // ─── 6. Comandos ao executor ──────────────────────────────────
+  // ─── 7. Comandos ao executor ──────────────────────────────────
   const commandsSent = canSendCommands();
   if (commandsSent) {
     const mappingConfig: MappingConfig = {
@@ -549,7 +814,7 @@ export async function runTick(input: TickInput): Promise<TickResult> {
     }
   }
 
-  // ─── 7. Entrega C: Execução simulada evidenciada ────────────
+  // ─── 8. Entrega C: Execução simulada evidenciada ────────────
   for (let i = 0; i < decisions.length; i++) {
     const decision = decisions[i];
     const intent = arbitratedIntents[i];
